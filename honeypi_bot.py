@@ -1,4 +1,3 @@
-import notify2
 from scapy.all import *
 import subprocess
 import logging
@@ -13,14 +12,8 @@ logging.basicConfig(filename="traffic_monitor.log", level=logging.INFO)
 scada_ip = "192.168.90.5"
 plc_ip = "192.168.96.2"
 
-# Honeypot IPs for load balancing (adjust with real IPs)
-honeypot_ips = [
-    '192.168.99.2',  # First honeypot (Ubuntu system)
-    '192.168.99.3',  # Another honeypot
-]
-
-# Initialize notify2 for desktop notifications
-notify2.init("Traffic Monitoring Alert")
+# Honeypot IP (since you specified this IP)
+honeypot_ip = '192.168.96.114'
 
 # Define pre-configured rules for vulnerable PLC traffic (like Modbus, S7comm, OPC)
 vulnerable_protocols = {
@@ -29,11 +22,12 @@ vulnerable_protocols = {
     "OPC": [135],      # OPC typically runs on TCP port 135
 }
 
-# Function to send desktop notification
-def send_notification(message):
-    notification = notify2.Notification("Intrusion Alert", message)
-    notification.set_timeout(5000)  # Notification stays for 5 seconds
-    notification.show()
+# Function to log alerts to console and file
+def log_alert(message):
+    # Log to file
+    logging.warning(message)
+    # Print to terminal
+    print(message)
 
 # Function to detect scanning behavior (e.g., Nmap, Metasploit, other scanners)
 def detect_scanners(packet):
@@ -45,19 +39,13 @@ def detect_scanners(packet):
 
         # Check for Nmap SYN scan (common flag pattern)
         if flags == "S":  # SYN flag typically used in Nmap scans
-            logging.warning(f"Possible Nmap scan detected from {src_ip} to {dst_ip} using SYN packets!")
-            send_notification(f"Possible Nmap scan detected from {src_ip} to {dst_ip}!")
+            log_alert(f"Possible Nmap scan detected from {src_ip} to {dst_ip} using SYN packets!")
             redirect_to_honeypot(src_ip, "Nmap Scan")
 
         # Detect Metasploit traffic (example: detecting known Metasploit scanning behavior)
-        # This is just a basic check (can be extended to more specific behaviors)
         if dport == 4444:  # Metasploit's default reverse shell port
-            logging.warning(f"Possible Metasploit scan or exploit attempt from {src_ip} to {dst_ip}!")
-            send_notification(f"Possible Metasploit exploit attempt detected from {src_ip} to {dst_ip}!")
+            log_alert(f"Possible Metasploit scan or exploit attempt from {src_ip} to {dst_ip}!")
             redirect_to_honeypot(src_ip, "Metasploit Exploit")
-
-        # Add more detection rules for other scanners or attack types here as needed
-        # e.g., detecting vulnerability scanning tools by looking for port scanning patterns
 
 # Function to handle incoming packets
 def packet_handler(packet):
@@ -73,24 +61,21 @@ def packet_handler(packet):
 
             for protocol_name, ports in vulnerable_protocols.items():
                 if dst_port in ports:
-                    logging.warning(f"Vulnerable PLC traffic detected: {src_ip} -> {dst_ip} using {protocol_name}!")
-                    send_notification(f"Vulnerable PLC traffic detected from {src_ip} to {dst_ip} using {protocol_name}!")
+                    log_alert(f"Vulnerable PLC traffic detected: {src_ip} -> {dst_ip} using {protocol_name}!")
                     redirect_to_honeypot(src_ip, protocol_name)
 
         # Monitor legitimate traffic between SCADA and PLC
         elif src_ip == scada_ip and dst_ip == plc_ip:
-            logging.info(f"Legitimate Modbus traffic: {src_ip} -> {dst_ip}")
+            log_alert(f"Legitimate Modbus traffic: {src_ip} -> {dst_ip}")
         else:
-            logging.info(f"Other traffic: {src_ip} -> {dst_ip}")
+            log_alert(f"Other traffic: {src_ip} -> {dst_ip}")
 
         # Call scanner detection function
         detect_scanners(packet)
 
-# Function to redirect traffic to a randomly chosen honeypot using iptables
+# Function to redirect traffic to the honeypot
 def redirect_to_honeypot(src_ip, reason):
-    # Randomly select a honeypot IP for load balancing
-    honeypot_ip = random.choice(honeypot_ips)
-    
+    # Use the fixed honeypot IP
     logging.info(f"Redirecting traffic from {src_ip} (Reason: {reason}) to honeypot {honeypot_ip}.")
     
     # Use iptables to redirect traffic to the honeypot
@@ -98,23 +83,20 @@ def redirect_to_honeypot(src_ip, reason):
 
 # Function to start the sniffing process
 def start_sniffing():
-    logging.info("Starting packet sniffing...")
+    log_alert("Starting packet sniffing...")
     sniff(prn=packet_handler, store=0, filter="ip")
 
-# Function to handle traffic redirection with load balancing
+# Function to handle traffic redirection with load balancing (modified to use a fixed honeypot)
 def handle_request(client_socket):
     try:
-        # Select a honeypot IP randomly for load balancing
-        honeypot_ip = random.choice(honeypot_ips)
-
-        # Forward the request to the selected honeypot IP
+        # Use the fixed honeypot IP for all traffic redirection
         forward_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         forward_socket.connect((honeypot_ip, 80))  # Assuming honeypot is listening on port 80
         
         # Receive data from client
         request = client_socket.recv(1024)
         
-        # Send the data to the selected honeypot
+        # Send the data to the honeypot
         forward_socket.sendall(request)
         
         # Receive the response from the honeypot
