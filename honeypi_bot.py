@@ -29,6 +29,9 @@ vulnerable_protocols = {
 
 logs = []  # In-memory log storage for GUI display
 
+# Track traffic count for each honeypot to load balance
+honeypot_traffic = {ip: 0 for ip in honeypot_ips}
+
 # Function to send notifications
 def send_notification(message):
     logging.info(f"Notification: {message}")
@@ -95,9 +98,11 @@ def forward_legitimate_or_redirect(src_ip, dst_ip, protocol_name):
         logs.append(f"Redirecting traffic to honeypot: {src_ip} -> {dst_ip} ({protocol_name})")
         return "redirect"
 
-# Redirect traffic to honeypot
+# Redirect traffic to honeypot (Load balanced)
 def redirect_to_honeypot(src_ip, reason):
-    honeypot_ip = random.choice(honeypot_ips)
+    # Load balancing: Pick the honeypot with the least traffic
+    honeypot_ip = min(honeypot_traffic, key=honeypot_traffic.get)
+    honeypot_traffic[honeypot_ip] += 1
     logs.append(f"Redirecting {src_ip} to honeypot {honeypot_ip} (Reason: {reason})")
     subprocess.run(["sudo", "iptables", "-t", "nat", "-A", "PREROUTING", "-s", src_ip, "-j", "DNAT", "--to-destination", honeypot_ip])
 
@@ -208,5 +213,3 @@ def set_trusted_ip_menu(stdscr):
         key = stdscr.getch()
         if key == ord('q'):
             break
-
-# Submenu
