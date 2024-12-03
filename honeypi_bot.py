@@ -1,7 +1,6 @@
 import subprocess
 import logging
 import random
-import socket
 from threading import Thread
 from scapy.all import *
 import curses
@@ -30,7 +29,7 @@ vulnerable_protocols = {
 
 logs = []  # In-memory log storage for GUI display
 
-# Function to send desktop notifications (optional)
+# Function to send notifications
 def send_notification(message):
     logging.info(f"Notification: {message}")
     logs.append(f"Notification: {message}")
@@ -117,72 +116,31 @@ def gui(stdscr):
     stdscr.nodelay(1)
     stdscr.timeout(500)
 
-    global trusted_ips, honeypot_ips, logs
-
-    # Main menu
-    menu = ["View Logs", "Add Trusted IP", "Remove Trusted IP", "Quit"]
-    current_row = 0
+    global logs
 
     while True:
         stdscr.clear()
 
-        # Render menu
+        # Display application name and author
+        stdscr.addstr(0, 0, "HoneyPi_bot - Real-time Traffic Monitoring")
+        stdscr.addstr(1, 0, "Author: Sangeevan")
+
+        # Display logs
+        log_start_line = 3
         h, w = stdscr.getmaxyx()
-        for idx, row in enumerate(menu):
-            x = w // 2 - len(row) // 2
-            y = h // 2 - len(menu) // 2 + idx
-            if idx == current_row:
-                stdscr.addstr(y, x, row, curses.color_pair(1))
-            else:
-                stdscr.addstr(y, x, row)
+        for idx, log in enumerate(logs[-(h - log_start_line - 1):]):
+            stdscr.addstr(log_start_line + idx, 0, log[:w - 1])
+
+        # Footer
+        stdscr.addstr(h - 1, 0, "Press 'q' to exit the log viewer...")
 
         # Handle user input
         key = stdscr.getch()
-
-        if key == curses.KEY_UP and current_row > 0:
-            current_row -= 1
-        elif key == curses.KEY_DOWN and current_row < len(menu) - 1:
-            current_row += 1
-        elif key == curses.KEY_ENTER or key in [10, 13]:
-            if current_row == 0:  # View Logs
-                view_logs(stdscr)
-            elif current_row == 1:  # Add Trusted IP
-                add_trusted_ip(stdscr)
-            elif current_row == 2:  # Remove Trusted IP
-                remove_trusted_ip(stdscr)
-            elif current_row == 3:  # Quit
-                break
+        if key == ord('q'):
+            break
 
         stdscr.refresh()
-
-def view_logs(stdscr):
-    stdscr.clear()
-    h, w = stdscr.getmaxyx()
-    stdscr.addstr(0, 0, "Logs:")
-
-    for idx, log in enumerate(logs[-(h - 2):]):
-        stdscr.addstr(idx + 1, 0, log[:w - 1])
-
-    stdscr.addstr(h - 1, 0, "Press any key to return...")
-    stdscr.getch()
-
-def add_trusted_ip(stdscr):
-    stdscr.clear()
-    stdscr.addstr(0, 0, "Enter IP to add as trusted: ")
-    curses.echo()
-    ip = stdscr.getstr(1, 0).decode("utf-8")
-    trusted_ips[f"Custom_{len(trusted_ips) + 1}"] = ip
-    logs.append(f"Added trusted IP: {ip}")
-    curses.noecho()
-
-def remove_trusted_ip(stdscr):
-    stdscr.clear()
-    stdscr.addstr(0, 0, "Enter IP to remove from trusted: ")
-    curses.echo()
-    ip = stdscr.getstr(1, 0).decode("utf-8")
-    trusted_ips = {key: value for key, value in trusted_ips.items() if value != ip}
-    logs.append(f"Removed trusted IP: {ip}")
-    curses.noecho()
+        time.sleep(0.5)
 
 if __name__ == "__main__":
     sniff_thread = Thread(target=start_sniffing)
