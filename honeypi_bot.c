@@ -1,177 +1,278 @@
-#include <ncurses.h>
-#include <stdlib.h>
-#include <string.h>
+import subprocess
+import logging
+import random
+from threading import Thread
+from scapy.all import *
+import curses
+import time
 
-#define MAX_IPS 10
+# Set up logging to record alerts
+logging.basicConfig(filename="traffic_monitor.log", level=logging.INFO)
 
-// Global arrays to store allowed and disallowed IPs
-char allowed_ips[MAX_IPS][20];
-char disallowed_ips[MAX_IPS][20];
-int allowed_count = 0, disallowed_count = 0;
-
-void init_colors() {
-    start_color();
-    init_pair(1, COLOR_BLUE, COLOR_BLACK);    // Blue text for titles
-    init_pair(2, COLOR_GREEN, COLOR_BLACK);   // Green text for options
-    init_pair(3, COLOR_RED, COLOR_BLACK);     // Red text for exit/alerts
-    init_pair(4, COLOR_WHITE, COLOR_BLACK);   // White text for normal text
+# Default configuration
+trusted_ips = {
+    "SCADA": "192.168.90.5",
+    "Workstation": "192.168.90.10",
 }
 
-void print_title(WINDOW *win, int startx, int starty) {
-    attron(COLOR_PAIR(1));
-    mvwprintw(win, starty, startx, "HoneyPi_bot");
-    attroff(COLOR_PAIR(1));
-    mvwprintw(win, starty + 1, startx, "Real-time Traffic Monitoring");
-    mvwprintw(win, starty + 2, startx, "Author: Sangeevan");
+plc_ip = "192.168.96.2"
+honeypot_ips = [
+    "192.168.96.114",
+    "192.168.96.115",
+]
+
+vulnerable_protocols = {
+    "Modbus": [502],
+    "S7comm": [102],
+    "OPC": [135],
 }
 
-void print_main_menu(WINDOW *win, int startx, int starty) {
-    clear(); // Clear the screen before showing main menu options
-    print_title(win, startx, starty);
+logs = []  # In-memory log storage for GUI display
 
-    attron(COLOR_PAIR(2));
-    mvwprintw(win, starty + 4, startx, "1. Set Trusted IP");
-    mvwprintw(win, starty + 5, startx, "2. View Logs");
-    mvwprintw(win, starty + 6, startx, "3. Allow/Disallow IP");
-    mvwprintw(win, starty + 7, startx, "q. Quit");
-    attroff(COLOR_PAIR(2));
-    wrefresh(win);
-}
+# Function to send notifications
+def send_notification(message):
+    logging.info(f"Notification: {message}")
+    logs.append(f"Notification: {message}")
 
-void print_ip_table(WINDOW *win, int startx, int starty) {
-    mvwprintw(win, starty, startx, "Allowed IPs (Index) :");
-    for (int i = 0; i < allowed_count; i++) {
-        mvwprintw(win, starty + i + 1, startx, "[%d] %s", i + 1, allowed_ips[i]);
-    }
+# Function to detect scanning behavior
+def detect_scanners(packet):
+    if packet.haslayer(TCP):
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
+        flags = packet[TCP].flags
+        if flags == "S":
+            message = f"Possible Nmap scan detected from {src_ip} to {dst_ip}"
+            logging.warning(message)
+            send_notification(message)
+            redirect_to_honeypot(src_ip, "Nmap Scan")
+
+# Function to detect pivot attacks
+def detect_pivot(packet):
+    if packet.haslayer(IP):
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
+        if src_ip not in trusted_ips.values() and dst_ip != plc_ip:
+            message = f"Potential pivot attack detected: {src_ip} -> {dst_ip}"
+            logging.warning(message)
+            send_notification(message)
+            redirect_to_honeypot(src_ip, "Pivot Attack")
+
+# Function to handle incoming packets
+def packet_handler(packet):
+    if packet.haslayer(IP):
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
+        protocol = packet.proto
+
+        # Allow traffic from trusted IPs
+        if src_ip in trusted_ips.values():
+            logs.append(f"Trusted traffic allowed: {src_ip} -> {dst_ip}")
+            return
+
+        # Detect vulnerable traffic
+        if packet.haslayer(TCP):
+            dst_port = packet[TCP].dport
+            for protocol_name, ports in vulnerable_protocols.items():
+                if dst_port in ports:
+                    message = f"Vulnerable traffic detected: {src_ip} -> {dst_ip} ({protocol_name})"
+                    logging.warning(message)
+                    send_notification(message)
+                    forward_decision = forward_legitimate_or_redirect(src_ip, dst_ip, protocol_name)
+                    if forward_decision == "redirect":
+                        redirect_to_honeypot(src_ip, protocol_name)
+                    elif forward_decision == "forward":
+                        forward_to_plc(src_ip)
+
+        detect_pivot(packet)
+        detect_scanners(packet)
+
+# Decide whether to forward or redirect
+def forward_legitimate_or_redirect(src_ip, dst_ip, protocol_name):
+    if src_ip in trusted_ips.values() and dst_ip == plc_ip:
+        logs.append(f"Forwarding legitimate traffic: {src_ip} -> {dst_ip} ({protocol_name})")
+        return "forward"
+    else:
+        logs.append(f"Redirecting traffic to honeypot: {src_ip} -> {dst_ip} ({protocol_name})")
+        return "redirect"
+
+# Redirect traffic to honeypot
+def redirect_to_honeypot(src_ip, reason):
+    honeypot_ip = random.choice(honeypot_ips)
+    logs.append(f"Redirecting {src_ip} to honeypot {honeypot_ip} (Reason: {reason})")
+    subprocess.run(["sudo", "iptables", "-t", "nat", "-A", "PREROUTING", "-s", src_ip, "-j", "DNAT", "--to-destination", honeypot_ip])
+
+# Forward legitimate traffic to PLC
+def forward_to_plc(src_ip):
+    logs.append(f"Forwarding traffic from {src_ip} to PLC {plc_ip}")
+    subprocess.run(["sudo", "iptables", "-t", "nat", "-A", "PREROUTING", "-s", src_ip, "-j", "DNAT", "--to-destination", plc_ip])
+
+# Start sniffing packets
+def start_sniffing():
+    sniff(prn=packet_handler, store=0, filter="ip")
+
+# Function to set a trusted IP
+def set_trusted_ip(ip_address, name):
+    trusted_ips[name] = ip_address
+    logs.append(f"Added trusted IP: {name} -> {ip_address}")
+    send_notification(f"Trusted IP added: {name} -> {ip_address}")
+
+# Function to allow or disallow traffic from a specific IP
+def allow_disallow_ip(src_ip, action):
+    if action == "allow":
+        trusted_ips[src_ip] = src_ip
+        logs.append(f"Allowed traffic from {src_ip}")
+        send_notification(f"Traffic allowed from {src_ip}")
+    elif action == "disallow":
+        if src_ip in trusted_ips:
+            del trusted_ips[src_ip]
+            logs.append(f"Disallowed traffic from {src_ip}")
+            send_notification(f"Traffic disallowed from {src_ip}")
+
+# Terminal GUI with light color scheme and centered options
+def gui(stdscr):
+    curses.curs_set(0)
+    stdscr.nodelay(1)
+    stdscr.timeout(500)
+
+    # Colors setup
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
+
+    global logs
+
+    # Main menu loop
+    while True:
+        stdscr.clear()
+        h, w = stdscr.getmaxyx()
+
+        # Display application name with larger text
+        stdscr.addstr(0, (w // 2) - 8, "HoneyPi_bot", curses.A_BOLD)
+        stdscr.addstr(1, (w // 2) - 17, "Real-time Traffic Monitoring", curses.A_BOLD)
+        stdscr.addstr(2, (w // 2) - 8, "Author: Sangeevan", curses.A_BOLD)
+
+        # Menu options, displayed centered
+        menu = ["1. Set Trusted IP", "2. View Logs", "3. Allow/Disallow IP", "4. Input Ladder Command", "q. Quit"]
+        for idx, option in enumerate(menu):
+            stdscr.addstr(h // 2 + idx - 2, (w // 2) - len(option) // 2, option, curses.A_BOLD)
+
+        # Footer
+        stdscr.addstr(h - 1, 0, "Press 'q' to quit.", curses.A_BOLD)
+
+        # Handle user input
+        key = stdscr.getch()
+
+        if key == ord('q'):
+            break
+        elif key == ord('1'):
+            # Navigate to "Set Trusted IP" menu
+            set_trusted_ip_menu(stdscr)
+        elif key == ord('2'):
+            # Navigate to "View Logs" menu
+            view_logs_menu(stdscr)
+        elif key == ord('3'):
+            # Navigate to "Allow/Disallow IP" menu
+            allow_disallow_ip_menu(stdscr)
+        elif key == ord('4'):
+            # Navigate to "Input Ladder Command" menu
+            input_ladder_command_menu(stdscr)
+
+        stdscr.refresh()
+
+# Submenu for Set Trusted IP
+def set_trusted_ip_menu(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Enter IP address to add as trusted:", curses.A_BOLD)
+    stdscr.refresh()
+    curses.echo()
     
-    mvwprintw(win, starty + allowed_count + 2, startx, "Disallowed IPs (Index) :");
-    for (int i = 0; i < disallowed_count; i++) {
-        mvwprintw(win, starty + allowed_count + i + 3, startx, "[%d] %s", i + 1, disallowed_ips[i]);
-    }
-}
+    # Wait for user input
+    ip = stdscr.getstr(1, 0).decode("utf-8")
+    stdscr.addstr(2, 0, "Enter name for the trusted IP:", curses.A_BOLD)
+    stdscr.refresh()
+    name = stdscr.getstr(3, 0).decode("utf-8")
+    
+    set_trusted_ip(ip, name)
+    curses.noecho()
 
-void set_trusted_ip(WINDOW *win) {
-    char ip[20];
-    mvwprintw(win, 10, 0, "Enter IP to add as trusted (or 'exit' to go back): ");
-    echo();
-    mvwscanw(win, 11, 0, "%s", ip);
-    if (strcmp(ip, "exit") == 0) {
-        noecho();
-        return;
-    }
-    if (allowed_count < MAX_IPS) {
-        strcpy(allowed_ips[allowed_count++], ip);
-        mvwprintw(win, 12, 0, "IP %s added as trusted!", ip);
-    } else {
-        mvwprintw(win, 12, 0, "IP list full. Cannot add more.");
-    }
-    noecho();
-}
+    # Wait for 'q' to go back to the main menu
+    while True:
+        key = stdscr.getch()
+        if key == ord('q'):
+            break
 
-void allow_disallow_ip(WINDOW *win) {
-    int choice;
-    char ip[20];
-    while (1) {
-        clear();
-        print_title(win, 10, 2);
-        print_ip_table(win, 10, 5);
-        mvwprintw(win, 18, 0, "Enter IP to toggle state (or 'exit' to go back): ");
-        echo();
-        mvwscanw(win, 19, 0, "%s", ip);
-        if (strcmp(ip, "exit") == 0) {
-            noecho();
-            break;
-        }
+# Submenu for Allow/Disallow IP
+def allow_disallow_ip_menu(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Enter IP address to Allow or Disallow:", curses.A_BOLD)
+    stdscr.refresh()
+    curses.echo()
+    
+    # Wait for user input
+    ip = stdscr.getstr(1, 0).decode("utf-8")
+    stdscr.addstr(2, 0, "Enter 'allow' to allow or 'disallow' to disallow the IP:", curses.A_BOLD)
+    stdscr.refresh()
+    action = stdscr.getstr(3, 0).decode("utf-8").lower()
 
-        // Check if the IP is in allowed list
-        int i;
-        for (i = 0; i < allowed_count; i++) {
-            if (strcmp(allowed_ips[i], ip) == 0) {
-                // Move IP from allowed to disallowed
-                strcpy(disallowed_ips[disallowed_count++], allowed_ips[i]);
-                for (int j = i; j < allowed_count - 1; j++) {
-                    strcpy(allowed_ips[j], allowed_ips[j + 1]);
-                }
-                allowed_count--;
-                mvwprintw(win, 21, 0, "IP %s moved to disallowed.", ip);
-                noecho();
-                break;
-            }
-        }
+    allow_disallow_ip(ip, action)
+    curses.noecho()
 
-        // Check if the IP is in disallowed list
-        for (i = 0; i < disallowed_count; i++) {
-            if (strcmp(disallowed_ips[i], ip) == 0) {
-                // Move IP from disallowed to allowed
-                strcpy(allowed_ips[allowed_count++], disallowed_ips[i]);
-                for (int j = i; j < disallowed_count - 1; j++) {
-                    strcpy(disallowed_ips[j], disallowed_ips[j + 1]);
-                }
-                disallowed_count--;
-                mvwprintw(win, 21, 0, "IP %s moved to allowed.", ip);
-                noecho();
-                break;
-            }
-        }
+    # Wait for 'q' to go back to the main menu
+    while True:
+        key = stdscr.getch()
+        if key == ord('q'):
+            break
 
-        if (i == allowed_count && i == disallowed_count) {
-            mvwprintw(win, 21, 0, "IP %s not found in allowed or disallowed list.", ip);
-        }
+# Submenu for Input Ladder Command
+def input_ladder_command_menu(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Enter Ladder command or type 'q' to go back:", curses.A_BOLD)
+    stdscr.refresh()
+    curses.echo()
+    
+    # Wait for user input
+    while True:
+        command = stdscr.getstr(1, 0).decode("utf-8")
+        if command.lower() == 'q':
+            break
+        else:
+            # Add logic to handle ladder command (either manually or from an editor)
+            logs.append(f"Ladder command entered: {command}")
+            stdscr.addstr(2, 0, f"Command {command} has been processed.", curses.A_BOLD)
+            stdscr.refresh()
 
-        refresh();
-        wrefresh(win);
-        getch(); // Wait for user input to continue
-    }
-}
+    curses.noecho()
 
-void view_logs(WINDOW *win) {
-    mvwprintw(win, 10, 0, "Logs will be displayed here. (No logs yet)");
-}
+# Submenu for View Logs
+def view_logs_menu(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Current Traffic Logs:", curses.A_BOLD)
+    stdscr.refresh()
+    
+    # Display the logs stored in memory
+    y = 2
+    for log in logs[-10:]:  # Display only the last 10 logs to avoid overwhelming the screen
+        stdscr.addstr(y, 0, log)
+        y += 1
+    
+    stdscr.refresh()
 
-void display_submenu(WINDOW *win, int choice) {
-    switch (choice) {
-        case 1:
-            set_trusted_ip(win);  // Set trusted IP
-            break;
-        case 2:
-            view_logs(win);  // View logs
-            break;
-        case 3:
-            allow_disallow_ip(win);  // Allow/Disallow IPs
-            break;
-        case 'q':
-            break;  // Quit the program
-        default:
-            break;
-    }
-}
+    # Wait for 'q' to go back to the main menu
+    while True:
+        key = stdscr.getch()
+        if key == ord('q'):
+            break
 
-int main() {
-    initscr();
-    cbreak();
-    noecho();
-    curs_set(0);  // Hide the cursor
+# Start the curses application
+def main():
+    curses.wrapper(gui)
 
-    init_colors(); // Initialize colors
-    WINDOW *main_win = newwin(20, 60, 1, 1);
-    keypad(main_win, TRUE);
-    int choice;
+if __name__ == "__main__":
+    # Start the packet sniffing in a background thread
+    sniffing_thread = Thread(target=start_sniffing)
+    sniffing_thread.daemon = True
+    sniffing_thread.start()
 
-    while (1) {
-        print_main_menu(main_win, 10, 2);
-        choice = wgetch(main_win); // Wait for user input
-
-        if (choice == 'q') {
-            break;  // Quit the program
-        } else if (choice == '1') {
-            display_submenu(main_win, 1);  // Go to Set Trusted IP submenu
-        } else if (choice == '2') {
-            display_submenu(main_win, 2);  // Go to View Logs submenu
-        } else if (choice == '3') {
-            display_submenu(main_win, 3);  // Go to Allow/Disallow IP submenu
-        }
-    }
-
-    endwin();  // End ncurses mode
-    return 0;
-}
+    # Start the curses-based terminal interface
+    main()
