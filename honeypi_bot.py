@@ -27,6 +27,8 @@ vulnerable_protocols = {
     "OPC": [135],
 }
 
+allowed_ladder_commands = []  # List to store allowed ladder commands
+
 logs = []  # In-memory log storage for GUI display
 
 # Function to send notifications
@@ -83,8 +85,28 @@ def packet_handler(packet):
                     elif forward_decision == "forward":
                         forward_to_plc(src_ip)
 
+        # Check for Ladder commands from workstation to PLC
+        if packet.haslayer(TCP) and src_ip == trusted_ips["Workstation"] and dst_ip == plc_ip:
+            payload = str(packet.payload)
+            if not is_ladder_command(payload):
+                message = f"Non-ladder command detected from {src_ip} to {dst_ip}: {payload}"
+                logging.warning(message)
+                send_notification(message)
+                return  # Block this non-ladder command
+            else:
+                logs.append(f"Ladder Command: {payload} from {src_ip} to {dst_ip}")
+                forward_to_plc(src_ip)
+
         detect_pivot(packet)
         detect_scanners(packet)
+
+# Function to check if the command is a valid Ladder command
+def is_ladder_command(command):
+    # Check if the command matches any allowed ladder commands
+    for allowed_command in allowed_ladder_commands:
+        if allowed_command in command:
+            return True
+    return False
 
 # Decide whether to forward or redirect
 def forward_legitimate_or_redirect(src_ip, dst_ip, protocol_name):
@@ -110,6 +132,36 @@ def forward_to_plc(src_ip):
 def start_sniffing():
     sniff(prn=packet_handler, store=0, filter="ip")
 
+# Function to add a Ladder command to the allowed list
+def add_ladder_command(command):
+    allowed_ladder_commands.append(command)
+    logs.append(f"Added Ladder command: {command}")
+    send_notification(f"Added Ladder command: {command}")
+
+# Function to set a trusted IP
+def set_trusted_ip(ip_address, name):
+    trusted_ips[name] = ip_address
+    logs.append(f"Added trusted IP: {name} -> {ip_address}")
+    send_notification(f"Trusted IP added: {name} -> {ip_address}")
+
+# Function to allow or disallow traffic from a specific IP
+def allow_disallow_ip(src_ip, action):
+    if action == "allow":
+        trusted_ips[src_ip] = src_ip
+        logs.append(f"Allowed traffic from {src_ip}")
+        send_notification(f"Traffic allowed from {src_ip}")
+    elif action == "disallow":
+        if src_ip in trusted_ips:
+            del trusted_ips[src_ip]
+            logs.append(f"Disallowed traffic from {src_ip}")
+            send_notification(f"Traffic disallowed from {src_ip}")
+
+# Function to display current iptables rules
+def view_current_rules():
+    logs.append("Current iptables rules:")
+    rules = subprocess.check_output(["sudo", "iptables", "-t", "nat", "-L", "-n", "-v"]).decode("utf-8")
+    logs.append(rules)
+
 # Terminal GUI
 def gui(stdscr):
     curses.curs_set(0)
@@ -132,18 +184,52 @@ def gui(stdscr):
             stdscr.addstr(log_start_line + idx, 0, log[:w - 1])
 
         # Footer
-        stdscr.addstr(h - 1, 0, "Press 'q' to exit the log viewer...")
+        stdscr.addstr(h - 1, 0, "Press 'q' to exit, '1' to set trusted IP, '2' to view current rules, '3' to allow/disallow IP, '4' to add ladder command...")
 
         # Handle user input
         key = stdscr.getch()
+
         if key == ord('q'):
             break
+        elif key == ord('1'):
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Enter IP address to add as trusted:")
+            stdscr.refresh()
+            curses.echo()
+            ip = stdscr.getstr(1, 0).decode("utf-8")
+            stdscr.addstr(2, 0, "Enter name for the trusted IP:")
+            stdscr.refresh()
+            name = stdscr.getstr(3, 0).decode("utf-8")
+            set_trusted_ip(ip, name)
+            curses.noecho()
+        elif key == ord('2'):
+            view_current_rules()
+            stdscr.refresh()
+        elif key == ord('3'):
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Enter IP to allow/disallow:")
+            stdscr.refresh()
+            curses.echo()
+            ip = stdscr.getstr(1, 0).decode("utf-8")
+            stdscr.addstr(2, 0, "Enter 'allow' or 'disallow':")
+            stdscr.refresh()
+            action = stdscr.getstr(3, 0).decode("utf-8")
+            allow_disallow_ip(ip, action)
+            curses.noecho()
+        elif key == ord('4'):
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Enter Ladder command to allow:")
+            stdscr.refresh()
+            curses.echo()
+            command = stdscr.getstr(1, 0).decode("utf-utf-8")
+            add_ladder_command(command)
+            curses.noecho()
 
-        stdscr.refresh()
-        time.sleep(0.5)
-
+# Start application
 if __name__ == "__main__":
+    # Start sniffing in a separate thread
     sniff_thread = Thread(target=start_sniffing)
     sniff_thread.start()
 
+    # Start terminal GUI
     curses.wrapper(gui)
