@@ -145,6 +145,7 @@ def gui(stdscr):
     curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_CYAN)  # Title background color
 
     global logs
 
@@ -152,18 +153,18 @@ def gui(stdscr):
         stdscr.clear()
         h, w = stdscr.getmaxyx()
 
-        # Display application name and author
-        stdscr.attron(curses.color_pair(1))
+        # Display application name with background
+        stdscr.attron(curses.color_pair(4))
         stdscr.addstr(0, (w // 2) - 8, "HoneyPi_bot")
-        stdscr.addstr(1, (w // 2) - 11, "Real-time Traffic Monitoring")
+        stdscr.addstr(1, (w // 2) - 17, "Real-time Traffic Monitoring")
         stdscr.addstr(2, (w // 2) - 8, "Author: Sangeevan")
-        stdscr.attroff(curses.color_pair(1))
+        stdscr.attroff(curses.color_pair(4))
 
-        # Menu options
+        # Menu options, displayed centered
         menu = ["1. Set Trusted IP", "2. View Current Rules", "3. Allow/Disallow IP", "4. Input Ladder Command", "5. View Logs", "q. Quit"]
         stdscr.attron(curses.color_pair(2))
         for idx, option in enumerate(menu):
-            stdscr.addstr(h // 2 + idx, (w // 2) - len(option) // 2, option)
+            stdscr.addstr(h // 2 + idx - 2, (w // 2) - len(option) // 2, option)
         stdscr.attroff(curses.color_pair(2))
 
         # Footer
@@ -202,26 +203,20 @@ def gui(stdscr):
             curses.noecho()
         elif key == ord('4'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Input Ladder Command:")
+            stdscr.addstr(0, 0, "Input ladder command:")
             stdscr.refresh()
             curses.echo()
             command = stdscr.getstr(1, 0).decode("utf-8")
-            # Handle ladder command (you can add logic here)
-            logs.append(f"Ladder Command Entered: {command}")
+            logs.append(f"Ladder command received: {command}")
+            send_notification(f"Ladder command: {command}")
             curses.noecho()
         elif key == ord('5'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Viewing Logs...")
-            for i, log in enumerate(logs[-(h - 3):]):
+            stdscr.addstr(0, 0, "Viewing logs:")
+            for i, log in enumerate(logs[-10:]):
                 stdscr.addstr(i + 1, 0, log)
             stdscr.refresh()
-            stdscr.getch()  # Wait for a key press before returning to main menu
+            stdscr.getch()  # Wait for any key to return to menu
 
-        stdscr.refresh()
-        time.sleep(0.5)
-
-if __name__ == "__main__":
-    sniff_thread = Thread(target=start_sniffing)
-    sniff_thread.start()
-
-    curses.wrapper(gui)
+# Start the curses GUI interface
+curses.wrapper(gui)
