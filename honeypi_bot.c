@@ -1,10 +1,9 @@
 import subprocess
-import logging
 import random
-from threading import Thread
-from scapy.all import *
+import logging
+from scapy.all import sniff, IP, TCP
 import curses
-import time
+from threading import Thread
 
 # Set up logging to record alerts
 logging.basicConfig(filename="traffic_monitor.log", level=logging.INFO)
@@ -44,7 +43,6 @@ def detect_scanners(packet):
             message = f"Possible Nmap scan detected from {src_ip} to {dst_ip}"
             logging.warning(message)
             send_notification(message)
-            redirect_to_honeypot(src_ip, "Nmap Scan")
 
 # Function to detect pivot attacks
 def detect_pivot(packet):
@@ -55,7 +53,6 @@ def detect_pivot(packet):
             message = f"Potential pivot attack detected: {src_ip} -> {dst_ip}"
             logging.warning(message)
             send_notification(message)
-            redirect_to_honeypot(src_ip, "Pivot Attack")
 
 # Function to handle incoming packets
 def packet_handler(packet):
@@ -77,17 +74,12 @@ def packet_handler(packet):
                     message = f"Vulnerable traffic detected: {src_ip} -> {dst_ip} ({protocol_name})"
                     logging.warning(message)
                     send_notification(message)
-                    forward_decision = forward_legitimate_or_redirect(src_ip, dst_ip, protocol_name)
-                    if forward_decision == "redirect":
-                        redirect_to_honeypot(src_ip, protocol_name)
-                    elif forward_decision == "forward":
-                        forward_to_plc(src_ip)
 
         detect_pivot(packet)
         detect_scanners(packet)
 
 # Decide whether to forward or redirect
-def forward_legitimate_or_redirect(src_ip, dst_ip, protocol_name):
+def forward_decision(src_ip, dst_ip, protocol_name):
     if src_ip in trusted_ips.values() and dst_ip == plc_ip:
         logs.append(f"Forwarding legitimate traffic: {src_ip} -> {dst_ip} ({protocol_name})")
         return "forward"
@@ -153,7 +145,7 @@ def gui(stdscr):
         stdscr.addstr(2, (w // 2) - 8, "Author: Sangeevan", curses.A_BOLD)
 
         # Menu options, displayed centered
-        menu = ["1. Set Trusted IP", "2. View Logs", "3. Allow/Disallow IP", "4. Input Ladder Command", "q. Quit"]
+        menu = ["1. Set Trusted IP", "2. View Logs", "3. Allow/Disallow IP", "q. Quit"]
         for idx, option in enumerate(menu):
             stdscr.addstr(h // 2 + idx - 2, (w // 2) - len(option) // 2, option, curses.A_BOLD)
 
@@ -174,9 +166,6 @@ def gui(stdscr):
         elif key == ord('3'):
             # Navigate to "Allow/Disallow IP" menu
             allow_disallow_ip_menu(stdscr)
-        elif key == ord('4'):
-            # Navigate to "Input Ladder Command" menu
-            input_ladder_command_menu(stdscr)
 
         stdscr.refresh()
 
@@ -223,26 +212,6 @@ def allow_disallow_ip_menu(stdscr):
         key = stdscr.getch()
         if key == ord('q'):
             break
-
-# Submenu for Input Ladder Command
-def input_ladder_command_menu(stdscr):
-    stdscr.clear()
-    stdscr.addstr(0, 0, "Enter Ladder command or type 'q' to go back:", curses.A_BOLD)
-    stdscr.refresh()
-    curses.echo()
-    
-    # Wait for user input
-    while True:
-        command = stdscr.getstr(1, 0).decode("utf-8")
-        if command.lower() == 'q':
-            break
-        else:
-            # Add logic to handle ladder command (either manually or from an editor)
-            logs.append(f"Ladder command entered: {command}")
-            stdscr.addstr(2, 0, f"Command {command} has been processed.", curses.A_BOLD)
-            stdscr.refresh()
-
-    curses.noecho()
 
 # Submenu for View Logs
 def view_logs_menu(stdscr):
