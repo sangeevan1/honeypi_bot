@@ -186,10 +186,13 @@ def set_trusted_ip_menu(stdscr):
     stdscr.addstr(0, 0, "Enter IP address to add as trusted:", curses.A_BOLD)
     stdscr.refresh()
     curses.echo()
+    
+    # Wait for user input
     ip = stdscr.getstr(1, 0).decode("utf-8")
     stdscr.addstr(2, 0, "Enter name for the trusted IP:", curses.A_BOLD)
     stdscr.refresh()
     name = stdscr.getstr(3, 0).decode("utf-8")
+    
     set_trusted_ip(ip, name)
     curses.noecho()
 
@@ -205,16 +208,14 @@ def allow_disallow_ip_menu(stdscr):
     stdscr.addstr(0, 0, "Enter IP address to Allow or Disallow:", curses.A_BOLD)
     stdscr.refresh()
     curses.echo()
+    
+    # Wait for user input
     ip = stdscr.getstr(1, 0).decode("utf-8")
     stdscr.addstr(2, 0, "Enter 'allow' to allow or 'disallow' to disallow the IP:", curses.A_BOLD)
     stdscr.refresh()
-    action = stdscr.getstr(3, 0).decode("utf-8")
-    
-    if action == 'allow' or action == 'disallow':
-        allow_disallow_ip(ip, action)
-    else:
-        stdscr.addstr(4, 0, "Invalid action! Please enter 'allow' or 'disallow'.", curses.A_BOLD)
-    
+    action = stdscr.getstr(3, 0).decode("utf-8").lower()
+
+    allow_disallow_ip(ip, action)
     curses.noecho()
 
     # Wait for 'q' to go back to the main menu
@@ -270,7 +271,8 @@ def main():
 if __name__ == "__main__":
     # Start the packet sniffing in a background thread
     sniffing_thread = Thread(target=start_sniffing)
+    sniffing_thread.daemon = True
     sniffing_thread.start()
 
-    # Run the GUI
+    # Start the curses-based terminal interface
     main()
