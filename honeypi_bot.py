@@ -27,8 +27,6 @@ vulnerable_protocols = {
     "OPC": [135],
 }
 
-allowed_ladder_commands = []  # List to store allowed ladder commands
-
 logs = []  # In-memory log storage for GUI display
 
 # Function to send notifications
@@ -85,28 +83,8 @@ def packet_handler(packet):
                     elif forward_decision == "forward":
                         forward_to_plc(src_ip)
 
-        # Check for Ladder commands from workstation to PLC
-        if packet.haslayer(TCP) and src_ip == trusted_ips["Workstation"] and dst_ip == plc_ip:
-            payload = str(packet.payload)
-            if not is_ladder_command(payload):
-                message = f"Non-ladder command detected from {src_ip} to {dst_ip}: {payload}"
-                logging.warning(message)
-                send_notification(message)
-                return  # Block this non-ladder command
-            else:
-                logs.append(f"Ladder Command: {payload} from {src_ip} to {dst_ip}")
-                forward_to_plc(src_ip)
-
         detect_pivot(packet)
         detect_scanners(packet)
-
-# Function to check if the command is a valid Ladder command
-def is_ladder_command(command):
-    # Check if the command matches any allowed ladder commands
-    for allowed_command in allowed_ladder_commands:
-        if allowed_command in command:
-            return True
-    return False
 
 # Decide whether to forward or redirect
 def forward_legitimate_or_redirect(src_ip, dst_ip, protocol_name):
@@ -131,12 +109,6 @@ def forward_to_plc(src_ip):
 # Start sniffing packets
 def start_sniffing():
     sniff(prn=packet_handler, store=0, filter="ip")
-
-# Function to add a Ladder command to the allowed list
-def add_ladder_command(command):
-    allowed_ladder_commands.append(command)
-    logs.append(f"Added Ladder command: {command}")
-    send_notification(f"Added Ladder command: {command}")
 
 # Function to set a trusted IP
 def set_trusted_ip(ip_address, name):
@@ -184,7 +156,7 @@ def gui(stdscr):
             stdscr.addstr(log_start_line + idx, 0, log[:w - 1])
 
         # Footer
-        stdscr.addstr(h - 1, 0, "Press 'q' to exit, '1' to set trusted IP, '2' to view current rules, '3' to allow/disallow IP, '4' to add ladder command...")
+        stdscr.addstr(h - 1, 0, "Press 'q' to exit, '1' to set trusted IP, '2' to view current rules...")
 
         # Handle user input
         key = stdscr.getch()
@@ -204,32 +176,23 @@ def gui(stdscr):
             curses.noecho()
         elif key == ord('2'):
             view_current_rules()
-            stdscr.refresh()
         elif key == ord('3'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Enter IP to allow/disallow:")
+            stdscr.addstr(0, 0, "Enter IP address to allow/disallow:")
             stdscr.refresh()
             curses.echo()
             ip = stdscr.getstr(1, 0).decode("utf-8")
-            stdscr.addstr(2, 0, "Enter 'allow' or 'disallow':")
+            stdscr.addstr(2, 0, "Enter action (allow/disallow):")
             stdscr.refresh()
             action = stdscr.getstr(3, 0).decode("utf-8")
             allow_disallow_ip(ip, action)
             curses.noecho()
-        elif key == ord('4'):
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Enter Ladder command to allow:")
-            stdscr.refresh()
-            curses.echo()
-            command = stdscr.getstr(1, 0).decode("utf-utf-8")
-            add_ladder_command(command)
-            curses.noecho()
 
-# Start application
+        stdscr.refresh()
+        time.sleep(0.5)
+
 if __name__ == "__main__":
-    # Start sniffing in a separate thread
     sniff_thread = Thread(target=start_sniffing)
     sniff_thread.start()
 
-    # Start terminal GUI
     curses.wrapper(gui)
