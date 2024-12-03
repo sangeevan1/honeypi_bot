@@ -134,8 +134,8 @@ def view_current_rules():
     rules = subprocess.check_output(["sudo", "iptables", "-t", "nat", "-L", "-n", "-v"]).decode("utf-8")
     logs.append(rules)
 
-# Terminal GUI with light color scheme and centered options
-def gui(stdscr):
+# msfconsole-like terminal interface
+def start_console(stdscr):
     curses.curs_set(0)
     stdscr.nodelay(1)
     stdscr.timeout(500)
@@ -147,8 +147,15 @@ def gui(stdscr):
     curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
 
     global logs
+    menu_options = [
+        "1. Set Trusted IP",
+        "2. View Current Rules",
+        "3. Allow/Disallow IP",
+        "4. Input Ladder Command",
+        "5. View Logs",
+        "q. Quit"
+    ]
 
-    # Main menu loop
     while True:
         stdscr.clear()
         h, w = stdscr.getmaxyx()
@@ -158,37 +165,32 @@ def gui(stdscr):
         stdscr.addstr(1, (w // 2) - 17, "Real-time Traffic Monitoring", curses.A_BOLD)
         stdscr.addstr(2, (w // 2) - 8, "Author: Sangeevan", curses.A_BOLD)
 
-        # Menu options, displayed centered
-        menu = ["1. Set Trusted IP", "2. View Current Rules", "3. Allow/Disallow IP", "4. Input Ladder Command", "5. View Logs", "q. Quit"]
-        for idx, option in enumerate(menu):
+        # Display Menu Options
+        for idx, option in enumerate(menu_options):
             stdscr.addstr(h // 2 + idx - 2, (w // 2) - len(option) // 2, option, curses.A_BOLD)
 
-        # Footer
-        stdscr.addstr(h - 1, 0, "Press 'q' to quit.", curses.A_BOLD)
+        # Display Input Prompt (msfconsole style)
+        stdscr.addstr(h - 2, 0, "Enter your option: ", curses.A_BOLD)
 
-        # Handle user input
+        # Refresh screen to show changes
+        stdscr.refresh()
+
+        # Get user input
         key = stdscr.getch()
 
         if key == ord('q'):
             break
         elif key == ord('1'):
-            # Navigate to "Set Trusted IP" menu
             set_trusted_ip_menu(stdscr)
         elif key == ord('2'):
-            # Navigate to "View Current Rules" menu
             view_current_rules()
             stdscr.clear()
         elif key == ord('3'):
-            # Navigate to "Allow/Disallow IP" menu
             allow_disallow_ip_menu(stdscr)
         elif key == ord('4'):
-            # Navigate to "Input Ladder Command" menu
             input_ladder_command_menu(stdscr)
         elif key == ord('5'):
-            # Navigate to "View Logs" menu
             view_logs_menu(stdscr)
-
-        stdscr.refresh()
 
 # Submenu for Set Trusted IP
 def set_trusted_ip_menu(stdscr):
@@ -203,10 +205,15 @@ def set_trusted_ip_menu(stdscr):
     set_trusted_ip(ip, name)
     curses.noecho()
 
-    # Wait for 'q' to go back to the main menu
+    # After operation, return to the main menu
     while True:
         key = stdscr.getch()
         if key == ord('q'):
             break
 
-# Other menus...
+# Main function to start the app
+def main():
+    curses.wrapper(start_console)
+
+if __name__ == "__main__":
+    main()
