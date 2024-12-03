@@ -134,6 +134,35 @@ def view_current_rules():
     rules = subprocess.check_output(["sudo", "iptables", "-t", "nat", "-L", "-n", "-v"]).decode("utf-8")
     logs.append(rules)
 
+# Function to add custom iptables rules
+def add_iptables_rule(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Enter iptables rule to add (e.g., '-A INPUT -p tcp --dport 80 -j ACCEPT'):", curses.A_BOLD)
+    stdscr.refresh()
+    curses.echo()
+    rule = stdscr.getstr(1, 0).decode("utf-8")
+    subprocess.run(["sudo", "iptables"] + rule.split())
+    logs.append(f"Added iptables rule: {rule}")
+    send_notification(f"Added iptables rule: {rule}")
+    curses.noecho()
+
+# Function to view allowed and disallowed IPs
+def view_allowed_disallowed_ips(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Allowed and Disallowed IPs:", curses.A_BOLD)
+    stdscr.refresh()
+
+    # List allowed IPs (from trusted_ips)
+    allowed_ips = "\n".join([f"{key}: {value}" for key, value in trusted_ips.items()])
+    stdscr.addstr(1, 0, f"Allowed IPs:\n{allowed_ips}\n", curses.A_BOLD)
+
+    # View footer with return option
+    stdscr.addstr(stdscr.getmaxyx()[0] - 2, 0, "Press any key to return to menu.", curses.A_BOLD)
+    stdscr.refresh()
+
+    # Wait for user input to return
+    stdscr.getch()
+
 # msfconsole-like terminal interface
 def start_console(stdscr):
     curses.curs_set(0)
@@ -153,6 +182,8 @@ def start_console(stdscr):
         "3. Allow/Disallow IP",
         "4. Input Ladder Command",
         "5. View Logs",
+        "6. Add iptables Rule",
+        "7. View Allowed/Disallowed IPs",
         "q. Quit"
     ]
 
@@ -191,8 +222,12 @@ def start_console(stdscr):
             input_ladder_command_menu(stdscr)
         elif key == ord('5'):
             view_logs_menu(stdscr)
+        elif key == ord('6'):
+            add_iptables_rule(stdscr)
+        elif key == ord('7'):
+            view_allowed_disallowed_ips(stdscr)
 
-# Submenu for Set Trusted IP
+# Function to display trusted IP menu
 def set_trusted_ip_menu(stdscr):
     stdscr.clear()
     stdscr.addstr(0, 0, "Enter IP address to add as trusted:", curses.A_BOLD)
@@ -205,7 +240,7 @@ def set_trusted_ip_menu(stdscr):
     set_trusted_ip(ip, name)
     curses.noecho()
 
-    # After operation, return to the main menu
+    # Wait for 'q' to go back to the main menu
     while True:
         key = stdscr.getch()
         if key == ord('q'):
