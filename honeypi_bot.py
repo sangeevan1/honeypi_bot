@@ -185,8 +185,7 @@ def start_console(stdscr):
         elif key == ord('2'):
             allow_disallow_ip_menu(stdscr)
         elif key == ord('3'):
-            # Placeholder for ladder command menu
-            pass
+            input_ladder_command_menu(stdscr)
         elif key == ord('4'):
             view_logs_menu(stdscr)
 
@@ -215,11 +214,14 @@ def set_trusted_ip_menu(stdscr):
 def allow_disallow_ip_menu(stdscr):
     stdscr.clear()
     stdscr.addstr(0, 0, "Allowed IPs:", curses.A_BOLD)
+
     allowed_ips, disallowed_ips = show_allowed_disallowed_ips()
 
+    # Show allowed IPs
     for idx, ip in enumerate(allowed_ips):
         stdscr.addstr(1 + idx, 0, f"Allowed: {ip}")
 
+    # Show disallowed IPs
     stdscr.addstr(h // 2 + 5, 0, "Disallowed IPs:", curses.A_BOLD)
     for idx, ip in enumerate(disallowed_ips):
         stdscr.addstr(1 + idx, 0, f"Disallowed: {ip}")
@@ -232,6 +234,37 @@ def allow_disallow_ip_menu(stdscr):
     stdscr.refresh()
     action = stdscr.getstr(h // 2 + 14, 0).decode("utf-8")
     allow_disallow_ip(ip, action)
+    curses.noecho()
+
+    while True:
+        key = stdscr.getch()
+        if key == ord('q'):
+            break
+
+# Submenu for Input Ladder Command
+def input_ladder_command_menu(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Input Ladder Logic Command:", curses.A_BOLD)
+    stdscr.refresh()
+    curses.echo()
+    ladder_command = stdscr.getstr(1, 0).decode("utf-8")
+
+    # Option 1: Load ladder logic from file
+    stdscr.addstr(2, 0, "Enter filename to load ladder logic (or press Enter to skip):", curses.A_BOLD)
+    stdscr.refresh()
+    filename = stdscr.getstr(3, 0).decode("utf-8")
+
+    if filename:
+        try:
+            with open(filename, 'r') as file:
+                ladder_command = file.read()
+                logs.append(f"Ladder logic loaded from {filename}")
+                send_notification(f"Ladder logic loaded from {filename}")
+        except FileNotFoundError:
+            logs.append(f"File {filename} not found!")
+            send_notification(f"File {filename} not found!")
+
+    stdscr.addstr(4, 0, f"Current Ladder Logic: {ladder_command}")
     curses.noecho()
 
     while True:
