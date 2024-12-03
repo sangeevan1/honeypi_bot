@@ -134,29 +134,42 @@ def view_current_rules():
     rules = subprocess.check_output(["sudo", "iptables", "-t", "nat", "-L", "-n", "-v"]).decode("utf-8")
     logs.append(rules)
 
-# Terminal GUI
+# Terminal GUI with light color scheme and centered options
 def gui(stdscr):
     curses.curs_set(0)
     stdscr.nodelay(1)
     stdscr.timeout(500)
 
+    # Colors setup
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
+
     global logs
 
     while True:
         stdscr.clear()
+        h, w = stdscr.getmaxyx()
 
         # Display application name and author
-        stdscr.addstr(0, 0, "HoneyPi_bot - Real-time Traffic Monitoring")
-        stdscr.addstr(1, 0, "Author: Sangeevan")
+        stdscr.attron(curses.color_pair(1))
+        stdscr.addstr(0, (w // 2) - 8, "HoneyPi_bot")
+        stdscr.addstr(1, (w // 2) - 11, "Real-time Traffic Monitoring")
+        stdscr.addstr(2, (w // 2) - 8, "Author: Sangeevan")
+        stdscr.attroff(curses.color_pair(1))
 
-        # Display logs
-        log_start_line = 3
-        h, w = stdscr.getmaxyx()
-        for idx, log in enumerate(logs[-(h - log_start_line - 1):]):
-            stdscr.addstr(log_start_line + idx, 0, log[:w - 1])
+        # Menu options
+        menu = ["1. Set Trusted IP", "2. View Current Rules", "3. Allow/Disallow IP", "4. Input Ladder Command", "5. View Logs", "q. Quit"]
+        stdscr.attron(curses.color_pair(2))
+        for idx, option in enumerate(menu):
+            stdscr.addstr(h // 2 + idx, (w // 2) - len(option) // 2, option)
+        stdscr.attroff(curses.color_pair(2))
 
         # Footer
-        stdscr.addstr(h - 1, 0, "Press 'q' to exit, '1' to set trusted IP, '2' to view current rules...")
+        stdscr.attron(curses.color_pair(3))
+        stdscr.addstr(h - 1, 0, "Press 'q' to quit.")
+        stdscr.attroff(curses.color_pair(3))
 
         # Handle user input
         key = stdscr.getch()
@@ -187,6 +200,22 @@ def gui(stdscr):
             action = stdscr.getstr(3, 0).decode("utf-8")
             allow_disallow_ip(ip, action)
             curses.noecho()
+        elif key == ord('4'):
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Input Ladder Command:")
+            stdscr.refresh()
+            curses.echo()
+            command = stdscr.getstr(1, 0).decode("utf-8")
+            # Handle ladder command (you can add logic here)
+            logs.append(f"Ladder Command Entered: {command}")
+            curses.noecho()
+        elif key == ord('5'):
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Viewing Logs...")
+            for i, log in enumerate(logs[-(h - 3):]):
+                stdscr.addstr(i + 1, 0, log)
+            stdscr.refresh()
+            stdscr.getch()  # Wait for a key press before returning to main menu
 
         stdscr.refresh()
         time.sleep(0.5)
