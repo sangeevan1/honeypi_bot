@@ -1,6 +1,6 @@
-import subprocess
-import random
 import logging
+import random
+import subprocess
 from scapy.all import sniff, IP, TCP
 import curses
 from threading import Thread
@@ -176,11 +176,23 @@ def set_trusted_ip_menu(stdscr):
     stdscr.refresh()
     curses.echo()
     
-    # Wait for user input
+    # Wait for user input and validate
     ip = stdscr.getstr(1, 0).decode("utf-8")
+    if not is_valid_ip(ip):
+        stdscr.addstr(2, 0, "Invalid IP address, please try again.", curses.A_BOLD | curses.color_pair(2))
+        stdscr.refresh()
+        curses.napms(2000)
+        return
+    
     stdscr.addstr(2, 0, "Enter name for the trusted IP:", curses.A_BOLD)
     stdscr.refresh()
-    name = stdscr.getstr(3, 0).decode("utf-8")
+    name = stdscr.getstr(3, 0).decode("utf-8").strip()
+    
+    if not name:
+        stdscr.addstr(4, 0, "Name cannot be empty, please try again.", curses.A_BOLD | curses.color_pair(2))
+        stdscr.refresh()
+        curses.napms(2000)
+        return
     
     set_trusted_ip(ip, name)
     curses.noecho()
@@ -198,12 +210,24 @@ def allow_disallow_ip_menu(stdscr):
     stdscr.refresh()
     curses.echo()
     
-    # Wait for user input
+    # Wait for user input and validate
     ip = stdscr.getstr(1, 0).decode("utf-8")
+    if not is_valid_ip(ip):
+        stdscr.addstr(2, 0, "Invalid IP address, please try again.", curses.A_BOLD | curses.color_pair(2))
+        stdscr.refresh()
+        curses.napms(2000)
+        return
+
     stdscr.addstr(2, 0, "Enter 'allow' to allow or 'disallow' to disallow the IP:", curses.A_BOLD)
     stdscr.refresh()
-    action = stdscr.getstr(3, 0).decode("utf-8").lower()
+    action = stdscr.getstr(3, 0).decode("utf-8").strip()
 
+    if action not in ["allow", "disallow"]:
+        stdscr.addstr(4, 0, "Invalid action. Please enter 'allow' or 'disallow'.", curses.A_BOLD | curses.color_pair(2))
+        stdscr.refresh()
+        curses.napms(2000)
+        return
+    
     allow_disallow_ip(ip, action)
     curses.noecho()
 
@@ -213,29 +237,11 @@ def allow_disallow_ip_menu(stdscr):
         if key == ord('q'):
             break
 
-# Submenu for View Logs
-def view_logs_menu(stdscr):
-    stdscr.clear()
-    stdscr.addstr(0, 0, "Current Traffic Logs:", curses.A_BOLD)
-    stdscr.refresh()
-    
-    # Display the logs stored in memory
-    y = 2
-    for log in logs[-10:]:  # Display only the last 10 logs to avoid overwhelming the screen
-        stdscr.addstr(y, 0, log)
-        y += 1
-    
-    stdscr.refresh()
-
-    # Wait for 'q' to go back to the main menu
-    while True:
-        key = stdscr.getch()
-        if key == ord('q'):
-            break
-
-# Start the curses application
-def main():
-    curses.wrapper(gui)
+# Validate IP address format
+def is_valid_ip(ip):
+    import re
+    ip_pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
+    return re.match(ip_pattern, ip) is not None
 
 if __name__ == "__main__":
     # Start the packet sniffing in a background thread
@@ -244,4 +250,4 @@ if __name__ == "__main__":
     sniffing_thread.start()
 
     # Start the curses-based terminal interface
-    main()
+    curses.wrapper(gui)
