@@ -34,15 +34,15 @@ void print_main_menu(WINDOW *win, int startx, int starty) {
     attroff(COLOR_PAIR(2));
 }
 
-void print_allow_disallow_ip(WINDOW *win, int startx, int starty) {
-    mvwprintw(win, starty, startx, "Allowed IPs:");
+void print_ip_table(WINDOW *win, int startx, int starty) {
+    mvwprintw(win, starty, startx, "Allowed IPs (Index) :");
     for (int i = 0; i < allowed_count; i++) {
-        mvwprintw(win, starty + i + 1, startx, "%s", allowed_ips[i]);
+        mvwprintw(win, starty + i + 1, startx, "[%d] %s", i + 1, allowed_ips[i]);
     }
     
-    mvwprintw(win, starty + allowed_count + 2, startx, "Disallowed IPs:");
+    mvwprintw(win, starty + allowed_count + 2, startx, "Disallowed IPs (Index) :");
     for (int i = 0; i < disallowed_count; i++) {
-        mvwprintw(win, starty + allowed_count + i + 3, startx, "%s", disallowed_ips[i]);
+        mvwprintw(win, starty + allowed_count + i + 3, startx, "[%d] %s", i + 1, disallowed_ips[i]);
     }
 }
 
@@ -65,48 +65,59 @@ void set_trusted_ip(WINDOW *win) {
 }
 
 void allow_disallow_ip(WINDOW *win) {
+    int choice;
     char ip[20];
-    mvwprintw(win, 10, 0, "Enter IP to toggle state (or 'exit' to go back): ");
-    echo();
-    mvwscanw(win, 11, 0, "%s", ip);
-    if (strcmp(ip, "exit") == 0) {
-        noecho();
-        return;
-    }
-
-    // Check if the IP is in allowed list
-    int i;
-    for (i = 0; i < allowed_count; i++) {
-        if (strcmp(allowed_ips[i], ip) == 0) {
-            // Move IP from allowed to disallowed
-            strcpy(disallowed_ips[disallowed_count++], allowed_ips[i]);
-            for (int j = i; j < allowed_count - 1; j++) {
-                strcpy(allowed_ips[j], allowed_ips[j + 1]);
-            }
-            allowed_count--;
-            mvwprintw(win, 12, 0, "IP %s moved to disallowed.", ip);
+    while (1) {
+        clear();
+        print_title(win, 10, 2);
+        print_ip_table(win, 10, 5);
+        mvwprintw(win, 18, 0, "Enter IP to toggle state (or 'exit' to go back): ");
+        echo();
+        mvwscanw(win, 19, 0, "%s", ip);
+        if (strcmp(ip, "exit") == 0) {
             noecho();
-            return;
+            break;
         }
-    }
 
-    // Check if the IP is in disallowed list
-    for (i = 0; i < disallowed_count; i++) {
-        if (strcmp(disallowed_ips[i], ip) == 0) {
-            // Move IP from disallowed to allowed
-            strcpy(allowed_ips[allowed_count++], disallowed_ips[i]);
-            for (int j = i; j < disallowed_count - 1; j++) {
-                strcpy(disallowed_ips[j], disallowed_ips[j + 1]);
+        // Check if the IP is in allowed list
+        int i;
+        for (i = 0; i < allowed_count; i++) {
+            if (strcmp(allowed_ips[i], ip) == 0) {
+                // Move IP from allowed to disallowed
+                strcpy(disallowed_ips[disallowed_count++], allowed_ips[i]);
+                for (int j = i; j < allowed_count - 1; j++) {
+                    strcpy(allowed_ips[j], allowed_ips[j + 1]);
+                }
+                allowed_count--;
+                mvwprintw(win, 21, 0, "IP %s moved to disallowed.", ip);
+                noecho();
+                break;
             }
-            disallowed_count--;
-            mvwprintw(win, 12, 0, "IP %s moved to allowed.", ip);
-            noecho();
-            return;
         }
-    }
 
-    mvwprintw(win, 12, 0, "IP %s not found in allowed or disallowed list.", ip);
-    noecho();
+        // Check if the IP is in disallowed list
+        for (i = 0; i < disallowed_count; i++) {
+            if (strcmp(disallowed_ips[i], ip) == 0) {
+                // Move IP from disallowed to allowed
+                strcpy(allowed_ips[allowed_count++], disallowed_ips[i]);
+                for (int j = i; j < disallowed_count - 1; j++) {
+                    strcpy(disallowed_ips[j], disallowed_ips[j + 1]);
+                }
+                disallowed_count--;
+                mvwprintw(win, 21, 0, "IP %s moved to allowed.", ip);
+                noecho();
+                break;
+            }
+        }
+
+        if (i == allowed_count && i == disallowed_count) {
+            mvwprintw(win, 21, 0, "IP %s not found in allowed or disallowed list.", ip);
+        }
+
+        refresh();
+        wrefresh(win);
+        getch(); // Wait for user input to continue
+    }
 }
 
 void view_logs(WINDOW *win) {
