@@ -130,27 +130,11 @@ def allow_disallow_ip(src_ip, action):
             logs.append(f"Disallowed traffic from {src_ip}")
             send_notification(f"Traffic disallowed from {src_ip}")
 
-# Function to display current iptables rules
-def view_current_rules():
-    logs.append("Current iptables rules:")
-    rules = subprocess.check_output(["sudo", "iptables", "-t", "nat", "-L", "-n", "-v"]).decode("utf-8")
-    logs.append(rules)
-
-# Function to add custom iptables rules for allowed ports/services
-def add_iptables_rule(stdscr):
-    stdscr.clear()
-    stdscr.addstr(0, 0, "Enter the service (e.g., 'http', 'ssh'):", curses.A_BOLD)
-    stdscr.refresh()
-    curses.echo()
-    service = stdscr.getstr(1, 0).decode("utf-8")
-    stdscr.addstr(2, 0, "Enter the port for the service:", curses.A_BOLD)
-    stdscr.refresh()
-    port = stdscr.getstr(3, 0).decode("utf-8")
-    rule = f"-A INPUT -p tcp --dport {port} -j ACCEPT"
-    subprocess.run(["sudo", "iptables"] + rule.split())
-    logs.append(f"Added iptables rule: {rule}")
-    send_notification(f"Added iptables rule: {rule}")
-    curses.noecho()
+# Function to show allowed and disallowed IPs
+def show_allowed_disallowed_ips():
+    allowed_ips = [ip for ip in trusted_ips.values()]
+    disallowed_ips = [ip for ip in trusted_ips if ip not in allowed_ips]
+    return allowed_ips, disallowed_ips
 
 # msfconsole-like terminal interface
 def start_console(stdscr):
@@ -167,11 +151,9 @@ def start_console(stdscr):
     global logs, alerts
     menu_options = [
         "1. Set Trusted IP",
-        "2. View Current Rules",
-        "3. Allow/Disallow IP",
-        "4. Input Ladder Command",
-        "5. View Logs",
-        "6. Add iptables Rule",
+        "2. Allow/Disallow IP",
+        "3. Input Ladder Command",
+        "4. View Logs",
         "q. Quit"
     ]
 
@@ -201,16 +183,12 @@ def start_console(stdscr):
         elif key == ord('1'):
             set_trusted_ip_menu(stdscr)
         elif key == ord('2'):
-            view_current_rules()
-        elif key == ord('3'):
             allow_disallow_ip_menu(stdscr)
-        elif key == ord('4'):
+        elif key == ord('3'):
             # Placeholder for ladder command menu
             pass
-        elif key == ord('5'):
+        elif key == ord('4'):
             view_logs_menu(stdscr)
-        elif key == ord('6'):
-            add_iptables_rule(stdscr)
 
         stdscr.refresh()
 
@@ -236,17 +214,26 @@ def set_trusted_ip_menu(stdscr):
 # Submenu for Allow/Disallow IP
 def allow_disallow_ip_menu(stdscr):
     stdscr.clear()
-    stdscr.addstr(0, 0, "Enter IP address to allow or disallow:", curses.A_BOLD)
+    stdscr.addstr(0, 0, "Allowed IPs:", curses.A_BOLD)
+    allowed_ips, disallowed_ips = show_allowed_disallowed_ips()
+
+    for idx, ip in enumerate(allowed_ips):
+        stdscr.addstr(1 + idx, 0, f"Allowed: {ip}")
+
+    stdscr.addstr(h // 2 + 5, 0, "Disallowed IPs:", curses.A_BOLD)
+    for idx, ip in enumerate(disallowed_ips):
+        stdscr.addstr(1 + idx, 0, f"Disallowed: {ip}")
+
+    stdscr.addstr(h // 2 + 10, 0, "Enter IP to change status (allow/disallow):", curses.A_BOLD)
     stdscr.refresh()
     curses.echo()
-    ip = stdscr.getstr(1, 0).decode("utf-8")
-    stdscr.addstr(2, 0, "Enter action (allow/disallow):", curses.A_BOLD)
+    ip = stdscr.getstr(h // 2 + 12, 0).decode("utf-8")
+    stdscr.addstr(h // 2 + 13, 0, "Enter action (allow/disallow):", curses.A_BOLD)
     stdscr.refresh()
-    action = stdscr.getstr(3, 0).decode("utf-8")
+    action = stdscr.getstr(h // 2 + 14, 0).decode("utf-8")
     allow_disallow_ip(ip, action)
     curses.noecho()
 
-    # Wait for 'q' to go back to the main menu
     while True:
         key = stdscr.getch()
         if key == ord('q'):
