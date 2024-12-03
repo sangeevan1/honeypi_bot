@@ -27,6 +27,7 @@ void log_activity(const char *message);
 void add_trusted_ip(const char *ip, const char *name);
 void add_ip_to_list(char *ip, char *state);
 void display_ips(WINDOW *win);
+void alert_vulnerable_traffic(const char *traffic);
 
 // Main function
 int main() {
@@ -38,7 +39,7 @@ int main() {
     keypad(stdscr, TRUE);
 
     // Create a window for menu display
-    int height = 10, width = 40;
+    int height = 20, width = 50;
     int start_y = (LINES - height) / 2;
     int start_x = (COLS - width) / 2;
     WINDOW *win = newwin(height, width, start_y, start_x);
@@ -59,14 +60,17 @@ void show_main_menu(WINDOW *win) {
         // Clear the window
         werase(win);
 
-        // Print the menu with heading
-        box(win, 0, 0);
-        mvwprintw(win, 1, 1, "Main Menu");
-        mvwprintw(win, 3, 1, "1. Set Trusted IP");
-        mvwprintw(win, 4, 1, "2. View Logs");
-        mvwprintw(win, 5, 1, "3. Allow/Disallow IP");
-        mvwprintw(win, 6, 1, "4. Input Ladder Command");
-        mvwprintw(win, 7, 1, "q. Quit");
+        // Print the title "HoneyPi_bot" in big text
+        mvwprintw(win, 1, 1, "HoneyPi_bot");
+        mvwprintw(win, 3, 1, "Real-time Traffic Monitoring");
+        mvwprintw(win, 4, 1, "Author: Sangeevan");
+
+        // Print the menu options
+        mvwprintw(win, 6, 1, "1. Set Trusted IP");
+        mvwprintw(win, 7, 1, "2. View Logs");
+        mvwprintw(win, 8, 1, "3. Allow/Disallow IP");
+        mvwprintw(win, 9, 1, "4. Input Ladder Command");
+        mvwprintw(win, 10, 1, "q. Quit");
 
         // Refresh the window to show the updated menu
         wrefresh(win);
@@ -107,13 +111,13 @@ void set_trusted_ip(WINDOW *win) {
 
     // Print heading
     mvwprintw(win, 1, 1, "Set Trusted IP");
-    mvwprintw(win, 3, 1, "Enter IP to set as trusted (Press 'q' to quit):");
+    mvwprintw(win, 3, 1, "Enter IP to set as trusted (Press 'Ctrl+Q' to quit):");
     wrefresh(win);
     echo();
     mvwgetstr(win, 4, 1, ip);
 
-    // Check if 'q' is pressed
-    if (strcmp(ip, "q") == 0) {
+    // Check for Ctrl+Q (ASCII 17 is Ctrl+Q)
+    if (ip[0] == 17) {
         noecho();
         return; // Exit and return to main menu
     }
@@ -122,8 +126,8 @@ void set_trusted_ip(WINDOW *win) {
     wrefresh(win);
     mvwgetstr(win, 7, 1, name);
 
-    // Check if 'q' is pressed
-    if (strcmp(name, "q") == 0) {
+    // Check for Ctrl+Q
+    if (name[0] == 17) {
         noecho();
         return; // Exit and return to main menu
     }
@@ -160,7 +164,7 @@ void view_logs(WINDOW *win) {
     // Wait for user input before returning to the main menu
     char key = wgetch(win);
     if (key == 'q') {
-        return; // Exit and return to the main menu
+        return; // Exit and return to main menu
     }
 }
 
@@ -175,13 +179,13 @@ void allow_disallow_ip(WINDOW *win) {
 
     // Print heading
     mvwprintw(win, 1, 1, "Allow/Disallow IP");
-    mvwprintw(win, 3, 1, "Enter IP to allow/disallow (Press 'q' to quit):");
+    mvwprintw(win, 3, 1, "Enter IP to allow/disallow (Press 'Ctrl+Q' to quit):");
     wrefresh(win);
     echo();
     mvwgetstr(win, 4, 1, ip);
 
-    // Check if 'q' is pressed
-    if (strcmp(ip, "q") == 0) {
+    // Check for Ctrl+Q
+    if (ip[0] == 17) {
         noecho();
         return; // Exit and return to main menu
     }
@@ -190,8 +194,8 @@ void allow_disallow_ip(WINDOW *win) {
     wrefresh(win);
     mvwgetstr(win, 7, 1, action);
 
-    // Check if 'q' is pressed
-    if (strcmp(action, "q") == 0) {
+    // Check for Ctrl+Q
+    if (action[0] == 17) {
         noecho();
         return; // Exit and return to main menu
     }
@@ -220,13 +224,13 @@ void input_ladder_command(WINDOW *win) {
 
     // Print heading
     mvwprintw(win, 1, 1, "Input Ladder Command");
-    mvwprintw(win, 3, 1, "Enter Ladder Command (Press 'q' to quit):");
+    mvwprintw(win, 3, 1, "Enter Ladder Command (Press 'Ctrl+Q' to quit):");
     wrefresh(win);
     echo();
     mvwgetstr(win, 4, 1, command);
 
-    // Check if 'q' is pressed
-    if (strcmp(command, "q") == 0) {
+    // Check for Ctrl+Q
+    if (command[0] == 17) {
         noecho();
         return; // Exit and return to main menu
     }
@@ -266,11 +270,9 @@ void add_ip_to_list(char *ip, char *state) {
     if (strcmp(state, "allowed") == 0 && allowed_index < MAX_IPS) {
         strcpy(allowed_ips[allowed_index], ip);
         allowed_index++;
-        log_activity("IP added to allow list");
     } else if (strcmp(state, "disallowed") == 0 && disallowed_index < MAX_IPS) {
         strcpy(disallowed_ips[disallowed_index], ip);
         disallowed_index++;
-        log_activity("IP added to disallow list");
     }
 }
 
@@ -284,9 +286,18 @@ void display_ips(WINDOW *win) {
         mvwprintw(win, 2 + i, 1, allowed_ips[i]);
     }
 
-    mvwprintw(win, 1, 20, "Disallowed IPs:");
+    mvwprintw(win, 4, 1, "Disallowed IPs:");
     for (int i = 0; i < disallowed_index; i++) {
-        mvwprintw(win, 2 + i, 20, disallowed_ips[i]);
+        mvwprintw(win, 5 + i, 1, disallowed_ips[i]);
     }
+
     wrefresh(win);
+}
+
+// Alert Vulnerable Traffic
+void alert_vulnerable_traffic(const char *traffic) {
+    // Simulate vulnerable traffic detection
+    if (strstr(traffic, "vulnerable") != NULL) {
+        printf("ALERT: Vulnerable traffic detected! Redirecting to honeypot.\n");
+    }
 }
