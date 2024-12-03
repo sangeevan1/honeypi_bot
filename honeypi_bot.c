@@ -25,7 +25,7 @@ void print_title(WINDOW *win, int startx, int starty) {
     mvwprintw(win, starty + 2, startx, "Author: Sangeevan");
 }
 
-void print_menu(WINDOW *win, int startx, int starty) {
+void print_main_menu(WINDOW *win, int startx, int starty) {
     attron(COLOR_PAIR(2));
     mvwprintw(win, starty + 4, startx, "1. Set Trusted IP");
     mvwprintw(win, starty + 5, startx, "2. View Logs");
@@ -34,17 +34,15 @@ void print_menu(WINDOW *win, int startx, int starty) {
     attroff(COLOR_PAIR(2));
 }
 
-void display_allowed_ips(WINDOW *win, int startx, int starty) {
+void print_allow_disallow_ip(WINDOW *win, int startx, int starty) {
     mvwprintw(win, starty, startx, "Allowed IPs:");
     for (int i = 0; i < allowed_count; i++) {
         mvwprintw(win, starty + i + 1, startx, "%s", allowed_ips[i]);
     }
-}
-
-void display_disallowed_ips(WINDOW *win, int startx, int starty) {
-    mvwprintw(win, starty, startx, "Disallowed IPs:");
+    
+    mvwprintw(win, starty + allowed_count + 2, startx, "Disallowed IPs:");
     for (int i = 0; i < disallowed_count; i++) {
-        mvwprintw(win, starty + i + 1, startx, "%s", disallowed_ips[i]);
+        mvwprintw(win, starty + allowed_count + i + 3, startx, "%s", disallowed_ips[i]);
     }
 }
 
@@ -115,6 +113,24 @@ void view_logs(WINDOW *win) {
     mvwprintw(win, 10, 0, "Logs will be displayed here. (No logs yet)");
 }
 
+void display_submenu(WINDOW *win, int choice) {
+    switch (choice) {
+        case 1:
+            set_trusted_ip(win);  // Set trusted IP
+            break;
+        case 2:
+            view_logs(win);  // View logs
+            break;
+        case 3:
+            allow_disallow_ip(win);  // Allow/Disallow IPs
+            break;
+        case 'q':
+            break;  // Quit the program
+        default:
+            break;
+    }
+}
+
 int main() {
     initscr();
     cbreak();
@@ -129,7 +145,7 @@ int main() {
     while (1) {
         clear();
         print_title(main_win, 10, 2);
-        print_menu(main_win, 10, 5);
+        print_main_menu(main_win, 10, 5);
         refresh();
         wrefresh(main_win);
         choice = wgetch(main_win);
@@ -137,11 +153,11 @@ int main() {
         if (choice == 'q') {
             break;  // Quit the program
         } else if (choice == '1') {
-            set_trusted_ip(main_win);  // Set trusted IP
+            display_submenu(main_win, 1);  // Go to Set Trusted IP submenu
         } else if (choice == '2') {
-            view_logs(main_win);  // View logs
+            display_submenu(main_win, 2);  // Go to View Logs submenu
         } else if (choice == '3') {
-            allow_disallow_ip(main_win);  // Allow/Disallow IPs
+            display_submenu(main_win, 3);  // Go to Allow/Disallow IP submenu
         }
         wrefresh(main_win);
     }
