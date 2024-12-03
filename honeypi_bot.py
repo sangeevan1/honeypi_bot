@@ -90,9 +90,8 @@ def gui(stdscr):
             "5. View Logs",
             "q. Quit"
         ]
-        menu.each_with_index do |option, idx|
-            stdscr.addstr(h // 2 + idx - 2, (w // 2) - option.length // 2, option, curses.A_BOLD)
-        end
+        for idx, option in enumerate(menu):
+            stdscr.addstr(h // 2 + idx - 2, (w // 2) - len(option) // 2, option, curses.A_BOLD)
 
         # Footer
         stdscr.addstr(h - 1, 0, "Press 'q' to quit.", curses.A_BOLD)
@@ -100,53 +99,50 @@ def gui(stdscr):
         # Handle user input
         key = stdscr.getch()
 
-        case key:
-            when 'q'.ord:
-                break
-            when '1'.ord:
-                stdscr.clear()
-                stdscr.addstr(0, 0, "Enter IP address to add as trusted:")
-                stdscr.refresh()
-                curses.echo()
-                ip = stdscr.getstr().strip()
-                stdscr.addstr(2, 0, "Enter name for the trusted IP:")
-                stdscr.refresh()
-                name = stdscr.getstr().strip()
-                set_trusted_ip(ip, name)
-                curses.noecho()
-            when '2'.ord:
-                view_current_rules()
-            when '3'.ord:
-                stdscr.clear()
-                stdscr.addstr(0, 0, "Enter IP address to allow/disallow:")
-                stdscr.refresh()
-                curses.echo()
-                ip = stdscr.getstr().strip()
-                stdscr.addstr(2, 0, "Enter action (allow/disallow):")
-                stdscr.refresh()
-                action = stdscr.getstr().strip()
-                allow_disallow_ip(ip, action)
-                curses.noecho()
-            when '4'.ord:
-                stdscr.clear()
-                stdscr.addstr(0, 0, "Input ladder command:")
-                stdscr.refresh()
-                curses.echo()
-                command = stdscr.getstr().strip()
-                input_ladder_command()
-                curses.noecho()
-            when '5'.ord:
-                stdscr.clear()
-                stdscr.addstr(0, 0, "Viewing logs:")
-                logs.last(10).each_with_index do |log, i|
-                    stdscr.addstr(i + 1, 0, log)
-                end
-                stdscr.refresh()
-                stdscr.getch()
+        if key == ord('q'):
+            break
+        elif key == ord('1'):
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Enter IP address to add as trusted:")
+            stdscr.refresh()
+            curses.echo()
+            ip = stdscr.getstr().strip()
+            stdscr.addstr(2, 0, "Enter name for the trusted IP:")
+            stdscr.refresh()
+            name = stdscr.getstr().strip()
+            set_trusted_ip(ip, name)
+            curses.noecho()
+        elif key == ord('2'):
+            view_current_rules()
+        elif key == ord('3'):
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Enter IP address to allow/disallow:")
+            stdscr.refresh()
+            curses.echo()
+            ip = stdscr.getstr().strip()
+            stdscr.addstr(2, 0, "Enter action (allow/disallow):")
+            stdscr.refresh()
+            action = stdscr.getstr().strip()
+            allow_disallow_ip(ip, action)
+            curses.noecho()
+        elif key == ord('4'):
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Input ladder command:")
+            stdscr.refresh()
+            curses.echo()
+            command = stdscr.getstr().strip()
+            input_ladder_command()
+            curses.noecho()
+        elif key == ord('5'):
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Viewing logs:")
+            for i, log in enumerate(logs[-10:]):
+                stdscr.addstr(i + 1, 0, log)
+            stdscr.refresh()
+            stdscr.getch()
 
         stdscr.refresh()
-        sleep(0.5)
-
+        time.sleep(0.5)
 
 if __name__ == "__main__":
     curses.wrapper(gui)
