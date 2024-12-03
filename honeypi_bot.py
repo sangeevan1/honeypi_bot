@@ -148,6 +148,7 @@ def gui(stdscr):
 
     global logs
 
+    # Main menu loop
     while True:
         stdscr.clear()
         h, w = stdscr.getmaxyx()
@@ -171,51 +172,41 @@ def gui(stdscr):
         if key == ord('q'):
             break
         elif key == ord('1'):
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Enter IP address to add as trusted:", curses.A_BOLD)
-            stdscr.refresh()
-            curses.echo()
-            ip = stdscr.getstr(1, 0).decode("utf-8")
-            stdscr.addstr(2, 0, "Enter name for the trusted IP:", curses.A_BOLD)
-            stdscr.refresh()
-            name = stdscr.getstr(3, 0).decode("utf-8")
-            set_trusted_ip(ip, name)
-            curses.noecho()
+            # Navigate to "Set Trusted IP" menu
+            set_trusted_ip_menu(stdscr)
         elif key == ord('2'):
+            # Navigate to "View Current Rules" menu
             view_current_rules()
+            stdscr.clear()
         elif key == ord('3'):
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Enter IP address to allow/disallow:", curses.A_BOLD)
-            stdscr.refresh()
-            curses.echo()
-            ip = stdscr.getstr(1, 0).decode("utf-8")
-            stdscr.addstr(2, 0, "Enter action (allow/disallow):", curses.A_BOLD)
-            stdscr.refresh()
-            action = stdscr.getstr(3, 0).decode("utf-8")
-            allow_disallow_ip(ip, action)
-            curses.noecho()
+            # Navigate to "Allow/Disallow IP" menu
+            allow_disallow_ip_menu(stdscr)
         elif key == ord('4'):
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Input ladder command:", curses.A_BOLD)
-            stdscr.refresh()
-            curses.echo()
-            command = stdscr.getstr(1, 0).decode("utf-8")
-            logs.append(f"Ladder command received: {command}")
-            send_notification(f"Ladder command: {command}")
-            curses.noecho()
+            # Navigate to "Input Ladder Command" menu
+            input_ladder_command_menu(stdscr)
         elif key == ord('5'):
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Viewing logs:", curses.A_BOLD)
-            for i, log in enumerate(logs[-10:]):
-                stdscr.addstr(i + 1, 0, log, curses.A_BOLD)
-            stdscr.refresh()
-            stdscr.getch()  # Wait for any key to return to menu
+            # Navigate to "View Logs" menu
+            view_logs_menu(stdscr)
 
         stdscr.refresh()
 
-if __name__ == "__main__":
-    sniff_thread = Thread(target=start_sniffing)
-    sniff_thread.daemon = True  # Make thread daemon so it exits when the main program exits
-    sniff_thread.start()
+# Submenu for Set Trusted IP
+def set_trusted_ip_menu(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Enter IP address to add as trusted:", curses.A_BOLD)
+    stdscr.refresh()
+    curses.echo()
+    ip = stdscr.getstr(1, 0).decode("utf-8")
+    stdscr.addstr(2, 0, "Enter name for the trusted IP:", curses.A_BOLD)
+    stdscr.refresh()
+    name = stdscr.getstr(3, 0).decode("utf-8")
+    set_trusted_ip(ip, name)
+    curses.noecho()
 
-    curses.wrapper(gui)
+    # Wait for 'q' to go back to the main menu
+    while True:
+        key = stdscr.getch()
+        if key == ord('q'):
+            break
+
+# Submenu
