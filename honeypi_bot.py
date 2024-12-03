@@ -147,6 +147,7 @@ def gui(stdscr):
     curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
 
     global logs
+    menu_open = True
 
     while True:
         stdscr.clear()
