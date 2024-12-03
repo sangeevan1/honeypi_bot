@@ -147,7 +147,6 @@ def gui(stdscr):
     curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
 
     global logs
-    menu_open = True
 
     while True:
         stdscr.clear()
@@ -213,10 +212,10 @@ def gui(stdscr):
             stdscr.getch()  # Wait for any key to return to menu
 
         stdscr.refresh()
-        time.sleep(0.5)
 
 if __name__ == "__main__":
     sniff_thread = Thread(target=start_sniffing)
+    sniff_thread.daemon = True  # Make thread daemon so it exits when the main program exits
     sniff_thread.start()
 
     curses.wrapper(gui)
