@@ -1,5 +1,6 @@
 import curses
 import logging
+import time
 
 # Set up logging to record alerts
 logging.basicConfig(filename="traffic_monitor.log", level=logging.INFO)
@@ -114,6 +115,12 @@ def gui(stdscr):
             curses.noecho()
         elif key == ord('2'):
             view_current_rules()
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Current iptables rules:")
+            for i, log in enumerate(logs[-10:]):
+                stdscr.addstr(i + 1, 0, log)
+            stdscr.refresh()
+            stdscr.getch()
         elif key == ord('3'):
             stdscr.clear()
             stdscr.addstr(0, 0, "Enter IP address to allow/disallow:")
