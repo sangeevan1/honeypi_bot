@@ -2,20 +2,27 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ncurses.h>
+#include <unistd.h>
 
 #define MAX_IP_LENGTH 16
 #define MAX_NAME_LENGTH 32
 #define MAX_LOGS 100
 #define MAX_IPS 20
+#define MAX_TRAFFIC_LOG 256
 
 // Data structures
-char trusted_ips[10][MAX_IP_LENGTH];
 char allowed_ips[MAX_IPS][MAX_IP_LENGTH];
 char disallowed_ips[MAX_IPS][MAX_IP_LENGTH];
 char logs[MAX_LOGS][256];
 int log_index = 0;
 int allowed_index = 0;
 int disallowed_index = 0;
+
+// Traffic types (Vulnerable traffic detection)
+const char *vulnerable_signatures[] = {
+    "Nmap Scan", "MSFconsole Scan", "Exploit Attempt", "Brute Force Attack"
+};
+int vulnerable_count = 4;
 
 // Function declarations
 void show_main_menu(WINDOW *win);
@@ -24,12 +31,14 @@ void view_logs(WINDOW *win);
 void allow_disallow_ip(WINDOW *win);
 void input_ladder_command(WINDOW *win);
 void log_activity(const char *message);
-void add_trusted_ip(const char *ip, const char *name);
 void add_ip_to_list(char *ip, char *state);
-void display_ips(WINDOW *win);
+void detect_vulnerable_traffic(const char *traffic);
 void alert_vulnerable_traffic(const char *traffic);
+void redirect_to_honeypot(const char *traffic);
+void display_ips(WINDOW *win);
+void check_vulnerable_traffic(WINDOW *win);
+void change_ip_state(WINDOW *win, char *ip, char *new_state);
 
-// Main function
 int main() {
     // Initialize ncurses
     initscr();
@@ -53,15 +62,16 @@ int main() {
     return 0;
 }
 
-// Main menu
 void show_main_menu(WINDOW *win) {
     int choice;
     while (1) {
         // Clear the window
         werase(win);
 
-        // Print the title "HoneyPi_bot" in big text
+        // Print the title "HoneyPi_bot" in big text and blue color
+        attron(COLOR_PAIR(1));
         mvwprintw(win, 1, 1, "HoneyPi_bot");
+        attroff(COLOR_PAIR(1));
         mvwprintw(win, 3, 1, "Real-time Traffic Monitoring");
         mvwprintw(win, 4, 1, "Author: Sangeevan");
 
@@ -70,7 +80,8 @@ void show_main_menu(WINDOW *win) {
         mvwprintw(win, 7, 1, "2. View Logs");
         mvwprintw(win, 8, 1, "3. Allow/Disallow IP");
         mvwprintw(win, 9, 1, "4. Input Ladder Command");
-        mvwprintw(win, 10, 1, "q. Quit");
+        mvwprintw(win, 10, 1, "5. Check for Vulnerable Traffic");
+        mvwprintw(win, 11, 1, "q. Quit");
 
         // Refresh the window to show the updated menu
         wrefresh(win);
@@ -92,6 +103,9 @@ void show_main_menu(WINDOW *win) {
             case '4':
                 input_ladder_command(win);
                 break;
+            case '5':
+                check_vulnerable_traffic(win);
+                break;
             case 'q':
                 return; // Quit the program
             default:
@@ -100,7 +114,6 @@ void show_main_menu(WINDOW *win) {
     }
 }
 
-// Set Trusted IP
 void set_trusted_ip(WINDOW *win) {
     char ip[MAX_IP_LENGTH];
     char name[MAX_NAME_LENGTH];
@@ -133,7 +146,7 @@ void set_trusted_ip(WINDOW *win) {
     }
 
     // Add to trusted IP list
-    add_trusted_ip(ip, name);
+    add_ip_to_list(ip, "allowed");
 
     // Log the activity
     log_activity("New trusted IP added");
@@ -145,7 +158,6 @@ void set_trusted_ip(WINDOW *win) {
     noecho();
 }
 
-// View Logs
 void view_logs(WINDOW *win) {
     // Clear window for log display
     werase(win);
@@ -168,7 +180,6 @@ void view_logs(WINDOW *win) {
     }
 }
 
-// Allow/Disallow IP
 void allow_disallow_ip(WINDOW *win) {
     char ip[MAX_IP_LENGTH];
     char action[10];
@@ -214,7 +225,6 @@ void allow_disallow_ip(WINDOW *win) {
     noecho();
 }
 
-// Input Ladder Command
 void input_ladder_command(WINDOW *win) {
     char command[256];
 
@@ -245,13 +255,12 @@ void input_ladder_command(WINDOW *win) {
     noecho();
 }
 
-// Log Activity
 void log_activity(const char *message) {
     if (log_index < MAX_LOGS) {
         strcpy(logs[log_index], message);
         log_index++;
     } else {
-        // Log buffer is full, overwrite the oldest log
+        // If logs exceed the maximum, remove the oldest entry
         for (int i = 1; i < MAX_LOGS; i++) {
             strcpy(logs[i - 1], logs[i]);
         }
@@ -259,13 +268,6 @@ void log_activity(const char *message) {
     }
 }
 
-// Add Trusted IP
-void add_trusted_ip(const char *ip, const char *name) {
-    // Just add to the trusted IP list (can be expanded to validate the IP)
-    printf("Adding trusted IP: %s (%s)\n", ip, name);
-}
-
-// Add IP to Allow/Disallow List
 void add_ip_to_list(char *ip, char *state) {
     if (strcmp(state, "allowed") == 0 && allowed_index < MAX_IPS) {
         strcpy(allowed_ips[allowed_index], ip);
@@ -276,7 +278,26 @@ void add_ip_to_list(char *ip, char *state) {
     }
 }
 
-// Display Allowed and Disallowed IPs
+void detect_vulnerable_traffic(const char *traffic) {
+    for (int i = 0; i < vulnerable_count; i++) {
+        if (strstr(traffic, vulnerable_signatures[i]) != NULL) {
+            alert_vulnerable_traffic(traffic);
+            redirect_to_honeypot(traffic);
+            break;
+        }
+    }
+}
+
+void alert_vulnerable_traffic(const char *traffic) {
+    // Alert for vulnerable traffic
+    printf("ALERT: Vulnerable traffic detected! Traffic: %s\n", traffic);
+}
+
+void redirect_to_honeypot(const char *traffic) {
+    // Simulate redirecting to a honeypot
+    printf("Redirecting vulnerable traffic '%s' to honeypot.\n", traffic);
+}
+
 void display_ips(WINDOW *win) {
     werase(win);
     box(win, 0, 0);
@@ -294,10 +315,31 @@ void display_ips(WINDOW *win) {
     wrefresh(win);
 }
 
-// Alert Vulnerable Traffic
-void alert_vulnerable_traffic(const char *traffic) {
-    // Simulate vulnerable traffic detection
-    if (strstr(traffic, "vulnerable") != NULL) {
-        printf("ALERT: Vulnerable traffic detected! Redirecting to honeypot.\n");
+void check_vulnerable_traffic(WINDOW *win) {
+    char traffic[MAX_TRAFFIC_LOG];
+
+    // Clear window for traffic log checking
+    werase(win);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, 1, "Check for Vulnerable Traffic");
+    mvwprintw(win, 3, 1, "Enter Traffic to Analyze (Press 'Ctrl+Q' to quit):");
+    wrefresh(win);
+    echo();
+    mvwgetstr(win, 4, 1, traffic);
+
+    // Check for Ctrl+Q (ASCII 17 is Ctrl+Q)
+    if (traffic[0] == 17) {
+        noecho();
+        return; // Exit and return to main menu
     }
+
+    // Detect if traffic is vulnerable
+    detect_vulnerable_traffic(traffic);
+
+    // Show success message
+    mvwprintw(win, 6, 1, "Traffic analyzed!");
+    wrefresh(win);
+    getch();
+    noecho();
 }
