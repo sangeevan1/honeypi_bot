@@ -1,5 +1,9 @@
-import curses
+import subprocess
 import logging
+import random
+from threading import Thread
+from scapy.all import *
+import curses
 import time
 
 # Set up logging to record alerts
@@ -30,6 +34,82 @@ def send_notification(message):
     logging.info(f"Notification: {message}")
     logs.append(f"Notification: {message}")
 
+# Function to detect scanning behavior
+def detect_scanners(packet):
+    if packet.haslayer(TCP):
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
+        flags = packet[TCP].flags
+        if flags == "S":
+            message = f"Possible Nmap scan detected from {src_ip} to {dst_ip}"
+            logging.warning(message)
+            send_notification(message)
+            redirect_to_honeypot(src_ip, "Nmap Scan")
+
+# Function to detect pivot attacks
+def detect_pivot(packet):
+    if packet.haslayer(IP):
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
+        if src_ip not in trusted_ips.values() and dst_ip != plc_ip:
+            message = f"Potential pivot attack detected: {src_ip} -> {dst_ip}"
+            logging.warning(message)
+            send_notification(message)
+            redirect_to_honeypot(src_ip, "Pivot Attack")
+
+# Function to handle incoming packets
+def packet_handler(packet):
+    if packet.haslayer(IP):
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
+        protocol = packet.proto
+
+        # Allow traffic from trusted IPs
+        if src_ip in trusted_ips.values():
+            logs.append(f"Trusted traffic allowed: {src_ip} -> {dst_ip}")
+            return
+
+        # Detect vulnerable traffic
+        if packet.haslayer(TCP):
+            dst_port = packet[TCP].dport
+            for protocol_name, ports in vulnerable_protocols.items():
+                if dst_port in ports:
+                    message = f"Vulnerable traffic detected: {src_ip} -> {dst_ip} ({protocol_name})"
+                    logging.warning(message)
+                    send_notification(message)
+                    forward_decision = forward_legitimate_or_redirect(src_ip, dst_ip, protocol_name)
+                    if forward_decision == "redirect":
+                        redirect_to_honeypot(src_ip, protocol_name)
+                    elif forward_decision == "forward":
+                        forward_to_plc(src_ip)
+
+        detect_pivot(packet)
+        detect_scanners(packet)
+
+# Decide whether to forward or redirect
+def forward_legitimate_or_redirect(src_ip, dst_ip, protocol_name):
+    if src_ip in trusted_ips.values() and dst_ip == plc_ip:
+        logs.append(f"Forwarding legitimate traffic: {src_ip} -> {dst_ip} ({protocol_name})")
+        return "forward"
+    else:
+        logs.append(f"Redirecting traffic to honeypot: {src_ip} -> {dst_ip} ({protocol_name})")
+        return "redirect"
+
+# Redirect traffic to honeypot
+def redirect_to_honeypot(src_ip, reason):
+    honeypot_ip = random.choice(honeypot_ips)
+    logs.append(f"Redirecting {src_ip} to honeypot {honeypot_ip} (Reason: {reason})")
+    subprocess.run(["sudo", "iptables", "-t", "nat", "-A", "PREROUTING", "-s", src_ip, "-j", "DNAT", "--to-destination", honeypot_ip])
+
+# Forward legitimate traffic to PLC
+def forward_to_plc(src_ip):
+    logs.append(f"Forwarding traffic from {src_ip} to PLC {plc_ip}")
+    subprocess.run(["sudo", "iptables", "-t", "nat", "-A", "PREROUTING", "-s", src_ip, "-j", "DNAT", "--to-destination", plc_ip])
+
+# Start sniffing packets
+def start_sniffing():
+    sniff(prn=packet_handler, store=0, filter="ip")
+
 # Function to set a trusted IP
 def set_trusted_ip(ip_address, name):
     trusted_ips[name] = ip_address
@@ -48,23 +128,17 @@ def allow_disallow_ip(src_ip, action):
             logs.append(f"Disallowed traffic from {src_ip}")
             send_notification(f"Traffic disallowed from {src_ip}")
 
-# Function to view current iptables rules
+# Function to display current iptables rules
 def view_current_rules():
     logs.append("Current iptables rules:")
-    # Simulate viewing current rules (can be replaced with real iptables check)
-    rules = "iptables -t nat -L -n -v"
+    rules = subprocess.check_output(["sudo", "iptables", "-t", "nat", "-L", "-n", "-v"]).decode("utf-8")
     logs.append(rules)
 
-# Function to handle ladder command input
-def input_ladder_command():
-    logs.append("Input ladder command received.")
-    send_notification("Ladder command received.")
-
-# Terminal GUI using curses
+# Terminal GUI with light color scheme and centered options
 def gui(stdscr):
     curses.curs_set(0)
-    stdscr.nodelay = True
-    stdscr.timeout = 500
+    stdscr.nodelay(1)
+    stdscr.timeout(500)
 
     # Colors setup
     curses.start_color()
@@ -73,6 +147,8 @@ def gui(stdscr):
     curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
 
     global logs
+    menu_open = True
+
     while True:
         stdscr.clear()
         h, w = stdscr.getmaxyx()
@@ -83,14 +159,7 @@ def gui(stdscr):
         stdscr.addstr(2, (w // 2) - 8, "Author: Sangeevan", curses.A_BOLD)
 
         # Menu options, displayed centered
-        menu = [
-            "1. Set Trusted IP",
-            "2. View Current Rules",
-            "3. Allow/Disallow IP",
-            "4. Input Ladder Command",
-            "5. View Logs",
-            "q. Quit"
-        ]
+        menu = ["1. Set Trusted IP", "2. View Current Rules", "3. Allow/Disallow IP", "4. Input Ladder Command", "5. View Logs", "q. Quit"]
         for idx, option in enumerate(menu):
             stdscr.addstr(h // 2 + idx - 2, (w // 2) - len(option) // 2, option, curses.A_BOLD)
 
@@ -104,52 +173,50 @@ def gui(stdscr):
             break
         elif key == ord('1'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Enter IP address to add as trusted:")
+            stdscr.addstr(0, 0, "Enter IP address to add as trusted:", curses.A_BOLD)
             stdscr.refresh()
             curses.echo()
-            ip = stdscr.getstr().strip()
-            stdscr.addstr(2, 0, "Enter name for the trusted IP:")
+            ip = stdscr.getstr(1, 0).decode("utf-8")
+            stdscr.addstr(2, 0, "Enter name for the trusted IP:", curses.A_BOLD)
             stdscr.refresh()
-            name = stdscr.getstr().strip()
+            name = stdscr.getstr(3, 0).decode("utf-8")
             set_trusted_ip(ip, name)
             curses.noecho()
         elif key == ord('2'):
             view_current_rules()
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Current iptables rules:")
-            for i, log in enumerate(logs[-10:]):
-                stdscr.addstr(i + 1, 0, log)
-            stdscr.refresh()
-            stdscr.getch()
         elif key == ord('3'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Enter IP address to allow/disallow:")
+            stdscr.addstr(0, 0, "Enter IP address to allow/disallow:", curses.A_BOLD)
             stdscr.refresh()
             curses.echo()
-            ip = stdscr.getstr().strip()
-            stdscr.addstr(2, 0, "Enter action (allow/disallow):")
+            ip = stdscr.getstr(1, 0).decode("utf-8")
+            stdscr.addstr(2, 0, "Enter action (allow/disallow):", curses.A_BOLD)
             stdscr.refresh()
-            action = stdscr.getstr().strip()
+            action = stdscr.getstr(3, 0).decode("utf-8")
             allow_disallow_ip(ip, action)
             curses.noecho()
         elif key == ord('4'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Input ladder command:")
+            stdscr.addstr(0, 0, "Input ladder command:", curses.A_BOLD)
             stdscr.refresh()
             curses.echo()
-            command = stdscr.getstr().strip()
-            input_ladder_command()
+            command = stdscr.getstr(1, 0).decode("utf-8")
+            logs.append(f"Ladder command received: {command}")
+            send_notification(f"Ladder command: {command}")
             curses.noecho()
         elif key == ord('5'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Viewing logs:")
+            stdscr.addstr(0, 0, "Viewing logs:", curses.A_BOLD)
             for i, log in enumerate(logs[-10:]):
-                stdscr.addstr(i + 1, 0, log)
+                stdscr.addstr(i + 1, 0, log, curses.A_BOLD)
             stdscr.refresh()
-            stdscr.getch()
+            stdscr.getch()  # Wait for any key to return to menu
 
         stdscr.refresh()
         time.sleep(0.5)
 
 if __name__ == "__main__":
+    sniff_thread = Thread(target=start_sniffing)
+    sniff_thread.start()
+
     curses.wrapper(gui)
