@@ -28,11 +28,13 @@ vulnerable_protocols = {
 }
 
 logs = []  # In-memory log storage for GUI display
+alerts = []  # For storing alerts
 
 # Function to send notifications
 def send_notification(message):
     logging.info(f"Notification: {message}")
     logs.append(f"Notification: {message}")
+    alerts.append(f"ALERT: {message}")  # Store alert to show in the main menu
 
 # Function to detect scanning behavior
 def detect_scanners(packet):
@@ -134,13 +136,17 @@ def view_current_rules():
     rules = subprocess.check_output(["sudo", "iptables", "-t", "nat", "-L", "-n", "-v"]).decode("utf-8")
     logs.append(rules)
 
-# Function to add custom iptables rules
+# Function to add custom iptables rules for allowed ports/services
 def add_iptables_rule(stdscr):
     stdscr.clear()
-    stdscr.addstr(0, 0, "Enter iptables rule to add (e.g., '-A INPUT -p tcp --dport 80 -j ACCEPT'):", curses.A_BOLD)
+    stdscr.addstr(0, 0, "Enter the service (e.g., 'http', 'ssh'):", curses.A_BOLD)
     stdscr.refresh()
     curses.echo()
-    rule = stdscr.getstr(1, 0).decode("utf-8")
+    service = stdscr.getstr(1, 0).decode("utf-8")
+    stdscr.addstr(2, 0, "Enter the port for the service:", curses.A_BOLD)
+    stdscr.refresh()
+    port = stdscr.getstr(3, 0).decode("utf-8")
+    rule = f"-A INPUT -p tcp --dport {port} -j ACCEPT"
     subprocess.run(["sudo", "iptables"] + rule.split())
     logs.append(f"Added iptables rule: {rule}")
     send_notification(f"Added iptables rule: {rule}")
@@ -158,7 +164,7 @@ def start_console(stdscr):
     curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
 
-    global logs
+    global logs, alerts
     menu_options = [
         "1. Set Trusted IP",
         "2. View Current Rules",
@@ -178,17 +184,16 @@ def start_console(stdscr):
         stdscr.addstr(1, (w // 2) - 17, "Real-time Traffic Monitoring", curses.A_BOLD)
         stdscr.addstr(2, (w // 2) - 8, "Author: Sangeevan", curses.A_BOLD)
 
+        # Display Alert if any
+        if alerts:
+            stdscr.addstr(h // 2 - 2, 0, f"ALERT: {alerts[-1]}", curses.A_BOLD)
+
         # Display Menu Options
         for idx, option in enumerate(menu_options):
-            stdscr.addstr(h // 2 + idx - 2, (w // 2) - len(option) // 2, option, curses.A_BOLD)
+            stdscr.addstr(h // 2 + idx, (w // 2) - len(option) // 2, option, curses.A_BOLD)
 
-        # Display Input Prompt (msfconsole style)
-        stdscr.addstr(h - 2, 0, "Enter your option: ", curses.A_BOLD)
+        stdscr.addstr(h - 1, 0, "Press 'q' to quit.", curses.A_BOLD)
 
-        # Refresh screen to show changes
-        stdscr.refresh()
-
-        # Get user input
         key = stdscr.getch()
 
         if key == ord('q'):
@@ -197,17 +202,19 @@ def start_console(stdscr):
             set_trusted_ip_menu(stdscr)
         elif key == ord('2'):
             view_current_rules()
-            stdscr.clear()
         elif key == ord('3'):
             allow_disallow_ip_menu(stdscr)
         elif key == ord('4'):
-            input_ladder_command_menu(stdscr)
+            # Placeholder for ladder command menu
+            pass
         elif key == ord('5'):
             view_logs_menu(stdscr)
         elif key == ord('6'):
             add_iptables_rule(stdscr)
 
-# Function to display trusted IP menu
+        stdscr.refresh()
+
+# Submenu for Set Trusted IP
 def set_trusted_ip_menu(stdscr):
     stdscr.clear()
     stdscr.addstr(0, 0, "Enter IP address to add as trusted:", curses.A_BOLD)
@@ -226,7 +233,7 @@ def set_trusted_ip_menu(stdscr):
         if key == ord('q'):
             break
 
-# Function to allow/disallow IP menu
+# Submenu for Allow/Disallow IP
 def allow_disallow_ip_menu(stdscr):
     stdscr.clear()
     stdscr.addstr(0, 0, "Enter IP address to allow or disallow:", curses.A_BOLD)
@@ -240,6 +247,18 @@ def allow_disallow_ip_menu(stdscr):
     curses.noecho()
 
     # Wait for 'q' to go back to the main menu
+    while True:
+        key = stdscr.getch()
+        if key == ord('q'):
+            break
+
+# Submenu for View Logs
+def view_logs_menu(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Logs:", curses.A_BOLD)
+    for i, log in enumerate(logs[-10:]):  # Display last 10 logs
+        stdscr.addstr(i + 1, 0, log)
+    stdscr.refresh()
     while True:
         key = stdscr.getch()
         if key == ord('q'):
