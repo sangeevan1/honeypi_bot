@@ -146,23 +146,6 @@ def add_iptables_rule(stdscr):
     send_notification(f"Added iptables rule: {rule}")
     curses.noecho()
 
-# Function to view allowed and disallowed IPs
-def view_allowed_disallowed_ips(stdscr):
-    stdscr.clear()
-    stdscr.addstr(0, 0, "Allowed and Disallowed IPs:", curses.A_BOLD)
-    stdscr.refresh()
-
-    # List allowed IPs (from trusted_ips)
-    allowed_ips = "\n".join([f"{key}: {value}" for key, value in trusted_ips.items()])
-    stdscr.addstr(1, 0, f"Allowed IPs:\n{allowed_ips}\n", curses.A_BOLD)
-
-    # View footer with return option
-    stdscr.addstr(stdscr.getmaxyx()[0] - 2, 0, "Press any key to return to menu.", curses.A_BOLD)
-    stdscr.refresh()
-
-    # Wait for user input to return
-    stdscr.getch()
-
 # msfconsole-like terminal interface
 def start_console(stdscr):
     curses.curs_set(0)
@@ -183,7 +166,6 @@ def start_console(stdscr):
         "4. Input Ladder Command",
         "5. View Logs",
         "6. Add iptables Rule",
-        "7. View Allowed/Disallowed IPs",
         "q. Quit"
     ]
 
@@ -224,8 +206,6 @@ def start_console(stdscr):
             view_logs_menu(stdscr)
         elif key == ord('6'):
             add_iptables_rule(stdscr)
-        elif key == ord('7'):
-            view_allowed_disallowed_ips(stdscr)
 
 # Function to display trusted IP menu
 def set_trusted_ip_menu(stdscr):
@@ -238,6 +218,25 @@ def set_trusted_ip_menu(stdscr):
     stdscr.refresh()
     name = stdscr.getstr(3, 0).decode("utf-8")
     set_trusted_ip(ip, name)
+    curses.noecho()
+
+    # Wait for 'q' to go back to the main menu
+    while True:
+        key = stdscr.getch()
+        if key == ord('q'):
+            break
+
+# Function to allow/disallow IP menu
+def allow_disallow_ip_menu(stdscr):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Enter IP address to allow or disallow:", curses.A_BOLD)
+    stdscr.refresh()
+    curses.echo()
+    ip = stdscr.getstr(1, 0).decode("utf-8")
+    stdscr.addstr(2, 0, "Enter action (allow/disallow):", curses.A_BOLD)
+    stdscr.refresh()
+    action = stdscr.getstr(3, 0).decode("utf-8")
+    allow_disallow_ip(ip, action)
     curses.noecho()
 
     # Wait for 'q' to go back to the main menu
