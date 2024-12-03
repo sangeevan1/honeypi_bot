@@ -26,12 +26,16 @@ void print_title(WINDOW *win, int startx, int starty) {
 }
 
 void print_main_menu(WINDOW *win, int startx, int starty) {
+    clear(); // Clear the screen before showing main menu options
+    print_title(win, startx, starty);
+
     attron(COLOR_PAIR(2));
     mvwprintw(win, starty + 4, startx, "1. Set Trusted IP");
     mvwprintw(win, starty + 5, startx, "2. View Logs");
     mvwprintw(win, starty + 6, startx, "3. Allow/Disallow IP");
     mvwprintw(win, starty + 7, startx, "q. Quit");
     attroff(COLOR_PAIR(2));
+    wrefresh(win);
 }
 
 void print_ip_table(WINDOW *win, int startx, int starty) {
@@ -154,12 +158,8 @@ int main() {
     int choice;
 
     while (1) {
-        clear();
-        print_title(main_win, 10, 2);
-        print_main_menu(main_win, 10, 5);
-        refresh();
-        wrefresh(main_win);
-        choice = wgetch(main_win);
+        print_main_menu(main_win, 10, 2);
+        choice = wgetch(main_win); // Wait for user input
 
         if (choice == 'q') {
             break;  // Quit the program
@@ -170,7 +170,6 @@ int main() {
         } else if (choice == '3') {
             display_submenu(main_win, 3);  // Go to Allow/Disallow IP submenu
         }
-        wrefresh(main_win);
     }
 
     endwin();  // End ncurses mode
