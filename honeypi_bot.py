@@ -213,26 +213,27 @@ def set_trusted_ip_menu(stdscr):
 # Submenu for Allow/Disallow IP
 def allow_disallow_ip_menu(stdscr):
     stdscr.clear()
-    stdscr.addstr(0, 0, "Allowed IPs:", curses.A_BOLD)
-
+    stdscr.addstr(0, 0, "Allow/Disallow IPs", curses.A_BOLD)
+    
     allowed_ips, disallowed_ips = show_allowed_disallowed_ips()
 
     # Show allowed IPs
+    stdscr.addstr(2, 0, "Allowed IPs:", curses.A_BOLD)
     for idx, ip in enumerate(allowed_ips):
-        stdscr.addstr(1 + idx, 0, f"Allowed: {ip}")
+        stdscr.addstr(3 + idx, 0, f"Allowed: {ip}")
 
     # Show disallowed IPs
-    stdscr.addstr(h // 2 + 5, 0, "Disallowed IPs:", curses.A_BOLD)
+    stdscr.addstr(2 + len(allowed_ips) + 1, 0, "Disallowed IPs:", curses.A_BOLD)
     for idx, ip in enumerate(disallowed_ips):
-        stdscr.addstr(1 + idx, 0, f"Disallowed: {ip}")
+        stdscr.addstr(3 + len(allowed_ips) + idx, 0, f"Disallowed: {ip}")
 
-    stdscr.addstr(h // 2 + 10, 0, "Enter IP to change status (allow/disallow):", curses.A_BOLD)
+    stdscr.addstr(3 + len(allowed_ips) + len(disallowed_ips) + 1, 0, "Enter IP to change status (allow/disallow):", curses.A_BOLD)
     stdscr.refresh()
     curses.echo()
-    ip = stdscr.getstr(h // 2 + 12, 0).decode("utf-8")
-    stdscr.addstr(h // 2 + 13, 0, "Enter action (allow/disallow):", curses.A_BOLD)
+    ip = stdscr.getstr(3 + len(allowed_ips) + len(disallowed_ips) + 2, 0).decode("utf-8")
+    stdscr.addstr(3 + len(allowed_ips) + len(disallowed_ips) + 3, 0, "Enter action (allow/disallow):", curses.A_BOLD)
     stdscr.refresh()
-    action = stdscr.getstr(h // 2 + 14, 0).decode("utf-8")
+    action = stdscr.getstr(3 + len(allowed_ips) + len(disallowed_ips) + 4, 0).decode("utf-8")
     allow_disallow_ip(ip, action)
     curses.noecho()
 
@@ -249,22 +250,7 @@ def input_ladder_command_menu(stdscr):
     curses.echo()
     ladder_command = stdscr.getstr(1, 0).decode("utf-8")
 
-    # Option 1: Load ladder logic from file
-    stdscr.addstr(2, 0, "Enter filename to load ladder logic (or press Enter to skip):", curses.A_BOLD)
-    stdscr.refresh()
-    filename = stdscr.getstr(3, 0).decode("utf-8")
-
-    if filename:
-        try:
-            with open(filename, 'r') as file:
-                ladder_command = file.read()
-                logs.append(f"Ladder logic loaded from {filename}")
-                send_notification(f"Ladder logic loaded from {filename}")
-        except FileNotFoundError:
-            logs.append(f"File {filename} not found!")
-            send_notification(f"File {filename} not found!")
-
-    stdscr.addstr(4, 0, f"Current Ladder Logic: {ladder_command}")
+    stdscr.addstr(2, 0, f"Current Ladder Logic: {ladder_command}")
     curses.noecho()
 
     while True:
