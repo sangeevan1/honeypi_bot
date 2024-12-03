@@ -145,7 +145,6 @@ def gui(stdscr):
     curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
-    curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_CYAN)  # Title background color
 
     global logs
 
@@ -153,24 +152,18 @@ def gui(stdscr):
         stdscr.clear()
         h, w = stdscr.getmaxyx()
 
-        # Display application name with background
-        stdscr.attron(curses.color_pair(4))
-        stdscr.addstr(0, (w // 2) - 8, "HoneyPi_bot")
-        stdscr.addstr(1, (w // 2) - 17, "Real-time Traffic Monitoring")
-        stdscr.addstr(2, (w // 2) - 8, "Author: Sangeevan")
-        stdscr.attroff(curses.color_pair(4))
+        # Display application name with larger text
+        stdscr.addstr(0, (w // 2) - 8, "HoneyPi_bot", curses.A_BOLD)
+        stdscr.addstr(1, (w // 2) - 17, "Real-time Traffic Monitoring", curses.A_BOLD)
+        stdscr.addstr(2, (w // 2) - 8, "Author: Sangeevan", curses.A_BOLD)
 
         # Menu options, displayed centered
         menu = ["1. Set Trusted IP", "2. View Current Rules", "3. Allow/Disallow IP", "4. Input Ladder Command", "5. View Logs", "q. Quit"]
-        stdscr.attron(curses.color_pair(2))
         for idx, option in enumerate(menu):
-            stdscr.addstr(h // 2 + idx - 2, (w // 2) - len(option) // 2, option)
-        stdscr.attroff(curses.color_pair(2))
+            stdscr.addstr(h // 2 + idx - 2, (w // 2) - len(option) // 2, option, curses.A_BOLD)
 
         # Footer
-        stdscr.attron(curses.color_pair(3))
-        stdscr.addstr(h - 1, 0, "Press 'q' to quit.")
-        stdscr.attroff(curses.color_pair(3))
+        stdscr.addstr(h - 1, 0, "Press 'q' to quit.", curses.A_BOLD)
 
         # Handle user input
         key = stdscr.getch()
@@ -179,11 +172,11 @@ def gui(stdscr):
             break
         elif key == ord('1'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Enter IP address to add as trusted:")
+            stdscr.addstr(0, 0, "Enter IP address to add as trusted:", curses.A_BOLD)
             stdscr.refresh()
             curses.echo()
             ip = stdscr.getstr(1, 0).decode("utf-8")
-            stdscr.addstr(2, 0, "Enter name for the trusted IP:")
+            stdscr.addstr(2, 0, "Enter name for the trusted IP:", curses.A_BOLD)
             stdscr.refresh()
             name = stdscr.getstr(3, 0).decode("utf-8")
             set_trusted_ip(ip, name)
@@ -192,18 +185,18 @@ def gui(stdscr):
             view_current_rules()
         elif key == ord('3'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Enter IP address to allow/disallow:")
+            stdscr.addstr(0, 0, "Enter IP address to allow/disallow:", curses.A_BOLD)
             stdscr.refresh()
             curses.echo()
             ip = stdscr.getstr(1, 0).decode("utf-8")
-            stdscr.addstr(2, 0, "Enter action (allow/disallow):")
+            stdscr.addstr(2, 0, "Enter action (allow/disallow):", curses.A_BOLD)
             stdscr.refresh()
             action = stdscr.getstr(3, 0).decode("utf-8")
             allow_disallow_ip(ip, action)
             curses.noecho()
         elif key == ord('4'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Input ladder command:")
+            stdscr.addstr(0, 0, "Input ladder command:", curses.A_BOLD)
             stdscr.refresh()
             curses.echo()
             command = stdscr.getstr(1, 0).decode("utf-8")
@@ -212,11 +205,17 @@ def gui(stdscr):
             curses.noecho()
         elif key == ord('5'):
             stdscr.clear()
-            stdscr.addstr(0, 0, "Viewing logs:")
+            stdscr.addstr(0, 0, "Viewing logs:", curses.A_BOLD)
             for i, log in enumerate(logs[-10:]):
-                stdscr.addstr(i + 1, 0, log)
+                stdscr.addstr(i + 1, 0, log, curses.A_BOLD)
             stdscr.refresh()
             stdscr.getch()  # Wait for any key to return to menu
 
-# Start the curses GUI interface
-curses.wrapper(gui)
+        stdscr.refresh()
+        time.sleep(0.5)
+
+if __name__ == "__main__":
+    sniff_thread = Thread(target=start_sniffing)
+    sniff_thread.start()
+
+    curses.wrapper(gui)
