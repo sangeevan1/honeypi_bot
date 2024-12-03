@@ -4,6 +4,7 @@ import subprocess
 from scapy.all import sniff, IP, TCP
 import curses
 from threading import Thread
+import re
 
 # Set up logging to record alerts
 logging.basicConfig(filename="traffic_monitor.log", level=logging.INFO)
@@ -217,37 +218,5 @@ def allow_disallow_ip_menu(stdscr):
         stdscr.refresh()
         curses.napms(2000)
         return
-
-    stdscr.addstr(2, 0, "Enter 'allow' to allow or 'disallow' to disallow the IP:", curses.A_BOLD)
-    stdscr.refresh()
-    action = stdscr.getstr(3, 0).decode("utf-8").strip()
-
-    if action not in ["allow", "disallow"]:
-        stdscr.addstr(4, 0, "Invalid action. Please enter 'allow' or 'disallow'.", curses.A_BOLD | curses.color_pair(2))
-        stdscr.refresh()
-        curses.napms(2000)
-        return
     
-    allow_disallow_ip(ip, action)
-    curses.noecho()
-
-    # Wait for 'q' to go back to the main menu
-    while True:
-        key = stdscr.getch()
-        if key == ord('q'):
-            break
-
-# Validate IP address format
-def is_valid_ip(ip):
-    import re
-    ip_pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
-    return re.match(ip_pattern, ip) is not None
-
-if __name__ == "__main__":
-    # Start the packet sniffing in a background thread
-    sniffing_thread = Thread(target=start_sniffing)
-    sniffing_thread.daemon = True
-    sniffing_thread.start()
-
-    # Start the curses-based terminal interface
-    curses.wrapper(gui)
+    stdscr.addstr(2,
