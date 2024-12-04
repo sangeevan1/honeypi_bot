@@ -46,14 +46,27 @@ void log_alert(const char *message) {
     printf("\033[0;31mALERT: %s\033[0m\n", message);
 }
 
+// Function to check for 'q' input to exit
+int check_exit(const char *input) {
+    if (strcmp(input, "q") == 0 || strcmp(input, "Q") == 0) {
+        printf("Returning to main menu...\n");
+        sleep(1);
+        return 1;
+    }
+    return 0;
+}
+
 // Function to define honeypot and SCADA IPs
 void define_ips() {
     char honeypot_ip[MAX_IP_LEN], scada_ip[MAX_IP_LEN];
 
-    printf("Enter the Honeypot IP address: ");
+    printf("Enter the Honeypot IP address (or press 'q' to return): ");
     scanf("%s", honeypot_ip);
-    printf("Enter the SCADA IP address: ");
+    if (check_exit(honeypot_ip)) return;
+
+    printf("Enter the SCADA IP address (or press 'q' to return): ");
     scanf("%s", scada_ip);
+    if (check_exit(scada_ip)) return;
 
     // Add Honeypot IP
     snprintf(trusted_ips[ip_count].ip, MAX_IP_LEN, "%s", honeypot_ip);
@@ -82,16 +95,21 @@ void display_trusted_ips() {
     for (int i = 0; i < ip_count; i++) {
         printf("%s -> %s\n", trusted_ips[i].ip, trusted_ips[i].status);
     }
+    printf("Press any key to return to the main menu...");
+    getchar(); getchar(); // Wait for user input
 }
 
 // Function to allow or disallow an IP
 void allow_disallow_ip() {
     char ip[MAX_IP_LEN], action[10];
 
-    printf("Enter the IP to allow/disallow: ");
+    printf("Enter the IP to allow/disallow (or press 'q' to return): ");
     scanf("%s", ip);
-    printf("Enter action (allow/disallow): ");
+    if (check_exit(ip)) return;
+
+    printf("Enter action (allow/disallow) (or press 'q' to return): ");
     scanf("%s", action);
+    if (check_exit(action)) return;
 
     if (strcmp(action, "allow") == 0) {
         snprintf(trusted_ips[ip_count].ip, MAX_IP_LEN, "%s", ip);
@@ -128,6 +146,8 @@ void view_logs() {
     char command[100];
     snprintf(command, 100, "cat %s", LOG_FILE);
     system(command);
+    printf("Press any key to return to the main menu...");
+    getchar(); getchar(); // Wait for user input
 }
 
 // Function to clear screen
@@ -174,23 +194,18 @@ int main() {
         switch (choice) {
             case 1:
                 define_ips();
-                sleep(2);
                 break;
             case 2:
                 display_trusted_ips();
-                sleep(2);
                 break;
             case 3:
                 allow_disallow_ip();
-                sleep(2);
                 break;
             case 4:
                 view_logs();
-                sleep(2);
                 break;
             case 5:
                 start_monitoring();
-                sleep(2);
                 break;
             case 6:
                 exit_application();
