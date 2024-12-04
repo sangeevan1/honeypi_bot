@@ -240,7 +240,7 @@ def allow_disallow_ip_menu(stdscr):
 def is_valid_ip(ip):
     return bool(re.match(r"^\d+\.\d+\.\d+\.\d+$", ip))
 
-# Start the traffic sniffing in a separate thread
+# Start sniffing in a separate thread
 def start_sniffing_thread():
     sniff_thread = Thread(target=start_sniffing)
     sniff_thread.daemon = True
