@@ -26,6 +26,7 @@ detect_vulnerable_traffic() {
     sudo tcpdump -i eth0 -nn -v 'tcp port 502 or tcp port 102 or tcp port 135' | while read line; do
         if [[ $line =~ "IP" ]]; then
             log_alert "Vulnerable traffic detected: $line"
+            echo -e "\033[0;31mALERT: Vulnerable traffic detected: $line\033[0m"
         fi
     done
 }
@@ -36,6 +37,7 @@ detect_scanning() {
     sudo tcpdump -i eth0 -nn -v 'tcp[tcpflags] == tcp-syn' | while read line; do
         if [[ $line =~ "IP" ]]; then
             log_alert "Possible Nmap scan detected: $line"
+            echo -e "\033[0;31mALERT: Possible Nmap scan detected: $line\033[0m"
         fi
     done
 }
@@ -52,7 +54,7 @@ set_trusted_ip() {
 
 # Function to display trusted IPs
 display_trusted_ips() {
-    echo "Trusted IPs:"
+    echo -e "\033[1;34m--- Trusted IPs ---\033[0m"
     for ip in "${!trusted_ips[@]}"; do
         echo "$ip -> ${trusted_ips[$ip]}"
     done
@@ -80,6 +82,7 @@ allow_disallow_ip() {
 
 # Function to view logs
 view_logs() {
+    echo -e "\033[1;34m--- Logs ---\033[0m"
     cat $LOG_FILE
 }
 
@@ -87,7 +90,7 @@ view_logs() {
 main_menu() {
     while true; do
         clear
-        echo "HoneyPi - Honeypot Monitor"
+        echo -e "\033[1;34m=== HoneyPi - Honeypot Monitor ===\033[0m"
         echo "1. Set Trusted IP"
         echo "2. View Trusted IPs"
         echo "3. Allow/Disallow IP"
