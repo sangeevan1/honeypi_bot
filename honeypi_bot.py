@@ -207,16 +207,48 @@ def set_trusted_ip_menu(stdscr):
 # Submenu for Allow/Disallow IP
 def allow_disallow_ip_menu(stdscr):
     stdscr.clear()
-    stdscr.addstr(0, 0, "Enter IP address to Allow or Disallow:", curses.A_BOLD)
+    stdscr.addstr(0, 0, "Enter IP address to allow or disallow:", curses.A_BOLD)
     stdscr.refresh()
-    curses.echo()
     
-    # Wait for user input and validate
-    ip = stdscr.getstr(1, 0).decode("utf-8")
+    # Wait for user input
+    ip = stdscr.getstr(1, 0).decode("utf-8").strip()
     if not is_valid_ip(ip):
         stdscr.addstr(2, 0, "Invalid IP address, please try again.", curses.A_BOLD | curses.color_pair(2))
         stdscr.refresh()
         curses.napms(2000)
         return
-    
-    stdscr.addstr(2,
+
+    stdscr.addstr(2, 0, "Enter action (allow/disallow):", curses.A_BOLD)
+    stdscr.refresh()
+    action = stdscr.getstr(3, 0).decode("utf-8").strip().lower()
+
+    if action not in ["allow", "disallow"]:
+        stdscr.addstr(4, 0, "Invalid action. Please enter 'allow' or 'disallow'.", curses.A_BOLD | curses.color_pair(2))
+        stdscr.refresh()
+        curses.napms(2000)
+        return
+
+    allow_disallow_ip(ip, action)
+
+    # Wait for 'q' to go back to the main menu
+    while True:
+        key = stdscr.getch()
+        if key == ord('q'):
+            break
+
+# Simple IP validation function
+def is_valid_ip(ip):
+    return bool(re.match(r"^\d+\.\d+\.\d+\.\d+$", ip))
+
+# Start the traffic sniffing in a separate thread
+def start_sniffing_thread():
+    sniff_thread = Thread(target=start_sniffing)
+    sniff_thread.daemon = True
+    sniff_thread.start()
+
+if __name__ == "__main__":
+    # Start the sniffing thread
+    start_sniffing_thread()
+
+    # Start the curses GUI
+    curses.wrapper(gui)
