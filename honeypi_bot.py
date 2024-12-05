@@ -49,6 +49,15 @@ def analyze_packet(packet):
             alert_message = f"Suspicious traffic detected from {src_ip} to {dst_ip}:{dst_port}"
             log_alert(alert_message)
             redirect_to_honeypot(src_ip)
+        
+        # Handle Honeypot traffic (Not blocking)
+        if dst_ip == HONEYPOT_IP:
+            print(f"\033[1;33mHoneypot traffic from {src_ip} detected!\033[0m")
+        # Check for attacking patterns
+        if any(keyword in str(packet).lower() for keyword in INTRUSION_KEYWORDS):
+            alert_message = f"Possible attack detected from {src_ip} (Keyword Match)"
+            log_alert(alert_message)
+            redirect_to_honeypot(src_ip)
 
 
 # Redirect suspicious traffic to the honeypot
@@ -100,16 +109,41 @@ def manage_allowed_ips():
     input("Press Enter to return to the main menu...")
 
 
+# Display the allowed and disallowed IPs in table format
+def view_allowed_ips():
+    print("\033[1;34m--- Allowed IPs ---\033[0m")
+    print("\033[1;32mIP Address \t\t Status\033[0m")
+    for ip in ALLOWED_IPS:
+        print(f"{ip} \t\t Allowed")
+    print("\nPress Enter to return to the main menu...")
+
+
 # View live traffic
 def view_live_traffic():
     print("\033[1;34m--- Live Traffic ---\033[0m")
     try:
-        sniff(filter="tcp", prn=lambda pkt: pkt.summary(), count=10, store=0)
+        sniff(filter="tcp", prn=live_traffic_view, count=10, store=0)
     except KeyboardInterrupt:
         print("\nReturning to main menu...")
     except Exception as e:
         print(f"Error: {e}")
     input("Press Enter to return to the main menu...")
+
+
+# Live traffic view with color coding
+def live_traffic_view(pkt):
+    if pkt.haslayer(TCP) and pkt.haslayer(IP):
+        src_ip = pkt[IP].src
+        dst_ip = pkt[IP].dst
+        dst_port = pkt[TCP].dport
+
+        # Display honeypot traffic in yellow
+        if dst_ip == HONEYPOT_IP:
+            print(f"\033[1;33mHoneypot traffic from {src_ip} detected!\033[0m")
+
+        # Vulnerable traffic (even from allowed IPs) in red to PLC
+        if dst_ip == PLC_IP and dst_port in VULNERABLE_PORTS:
+            print(f"\033[0;31mVulnerable traffic from {src_ip} detected to PLC on port {dst_port}\033[0m")
 
 
 # Background network monitoring function
@@ -144,6 +178,7 @@ def exit_application():
     print("Stopping background monitoring and exiting...")
     log_alert("Application exited.")
     time.sleep(1)
+    os.system("sudo iptables -t nat -F")  # Flush iptables rules to stop redirects and allow all traffic
     exit()
 
 
@@ -168,9 +203,10 @@ def main_menu():
         print("\033[1;34m--- Main Menu ---\033[0m")
         print("1. View Logs")
         print("2. Manage Allowed IPs")
-        print("3. View Live Traffic")
-        print("4. Clear Screen")
-        print("5. Exit")
+        print("3. View Allowed IPs in Table")
+        print("4. View Live Traffic")
+        print("5. Clear Screen")
+        print("6. Exit")
         choice = input("Enter your choice: ").strip()
 
         if choice == "1":
@@ -178,10 +214,12 @@ def main_menu():
         elif choice == "2":
             manage_allowed_ips()
         elif choice == "3":
-            view_live_traffic()
+            view_allowed_ips()
         elif choice == "4":
-            clear_screen()
+            view_live_traffic()
         elif choice == "5":
+            clear_screen()
+        elif choice == "6":
             exit_application()
         else:
             print("Invalid choice. Please try again.")
