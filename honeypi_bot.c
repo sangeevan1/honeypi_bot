@@ -3,13 +3,13 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
-#include <signal.h>
 
 #define LOG_FILE "honeypot_alerts.log"
 #define MAX_IP_LEN 16
 #define MAX_INPUT 100
 #define MAX_ALERT_LEN 200
 #define HONEYPOT_IP "192.168.1.100"  // Simulated honeypot IP
+#define VULNERABLE_PORTS "502|102|135"  // Example vulnerable ports (Modbus, SCADA, etc.)
 
 // Function prototypes
 void log_alert(const char *message);
@@ -70,7 +70,6 @@ void define_ips() {
     if (check_exit(scada_ip)) return;
 
     // Add Honeypot IP
-    // Add your logic to add Honeypot and SCADA IPs here
     log_alert("Honeypot and SCADA IPs have been added as trusted.");
     printf("Honeypot and SCADA IPs have been added as trusted.\n");
 }
@@ -99,11 +98,21 @@ void allow_disallow_ip() {
     log_alert("Allowed/Disallowed IP action performed.");
 }
 
-// Function to detect vulnerable traffic
+// Function to detect vulnerable traffic and highlight in red
 void detect_vulnerable_traffic() {
     printf("Detecting vulnerable traffic...\n");
     log_alert("Vulnerable traffic detection started.");
-    system("tcpdump -i eth0 -nn -v 'tcp port 502 or tcp port 102 or tcp port 135'"); // Example vulnerable ports
+
+    // Example of detecting traffic on specific ports
+    FILE *fp = popen("tcpdump -i eth0 -nn -v 'tcp port " VULNERABLE_PORTS "'", "r");
+    if (fp) {
+        char buffer[1024];
+        while (fgets(buffer, sizeof(buffer), fp)) {
+            // Highlight vulnerable traffic in red
+            printf("\033[0;31m%s\033[0m", buffer);  // Red color
+        }
+        fclose(fp);
+    }
     log_alert("Vulnerable traffic detection stopped.");
 }
 
@@ -155,7 +164,6 @@ void start_network_monitoring() {
     if (pid == 0) {  // Child process (network monitoring)
         while (1) {
             // Simulate intrusion detection (e.g., Nmap or scanning tool detection)
-            // Example detection for Nmap or other common attack tools
             FILE *fp = popen("netstat -an | grep ':80 ' | wc -l", "r");
             if (fp) {
                 int count;
