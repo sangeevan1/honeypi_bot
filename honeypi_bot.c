@@ -8,7 +8,9 @@
 #define MAX_IP_LEN 16
 #define MAX_INPUT 100
 #define MAX_ALERT_LEN 200
-#define HONEYPOT_IP "192.168.1.100"  // Simulated honeypot IP
+#define HONEYPOT_IP "192.168.96.114"  // Predefined Honeypot IP
+#define SCADA_IP "192.168.90.5"      // Predefined SCADA IP
+#define PLC_IP "192.168.96.2"        // Predefined PLC IP
 #define VULNERABLE_PORTS "502|102|135"  // Example vulnerable ports (Modbus, SCADA, etc.)
 
 // Function prototypes
@@ -57,27 +59,36 @@ int check_exit(const char *input) {
     return 0;
 }
 
-// Function to define honeypot and SCADA IPs
+// Function to define honeypot and SCADA IPs (allows changing in the future through GUI)
 void define_ips() {
-    char honeypot_ip[MAX_IP_LEN], scada_ip[MAX_IP_LEN];
+    char honeypot_ip[MAX_IP_LEN], scada_ip[MAX_IP_LEN], plc_ip[MAX_IP_LEN];
 
-    printf("Enter the Honeypot IP address (or press 'q' to return): ");
+    printf("Current Honeypot IP: %s\n", HONEYPOT_IP);
+    printf("Current SCADA IP: %s\n", SCADA_IP);
+    printf("Current PLC IP: %s\n", PLC_IP);
+    printf("Enter new Honeypot IP (or press 'q' to keep current): ");
     scanf("%s", honeypot_ip);
     if (check_exit(honeypot_ip)) return;
 
-    printf("Enter the SCADA IP address (or press 'q' to return): ");
+    printf("Enter new SCADA IP (or press 'q' to keep current): ");
     scanf("%s", scada_ip);
     if (check_exit(scada_ip)) return;
 
-    // Add Honeypot IP
-    log_alert("Honeypot and SCADA IPs have been added as trusted.");
-    printf("Honeypot and SCADA IPs have been added as trusted.\n");
+    printf("Enter new PLC IP (or press 'q' to keep current): ");
+    scanf("%s", plc_ip);
+    if (check_exit(plc_ip)) return;
+
+    // Here, you can implement saving these new IPs to a config file for future use.
+    log_alert("Honeypot, SCADA, and PLC IPs have been updated.");
+    printf("Honeypot, SCADA, and PLC IPs have been updated.\n");
 }
 
 // Function to display trusted IPs
 void display_trusted_ips() {
     printf("\033[1;34m--- Trusted IPs ---\033[0m\n");
-    // Display trusted IPs logic here
+    printf("Honeypot IP: %s\n", HONEYPOT_IP);
+    printf("SCADA IP: %s\n", SCADA_IP);
+    printf("PLC IP: %s\n", PLC_IP);
     printf("Press any key to return to the main menu...");
     getchar(); getchar(); // Wait for user input
 }
@@ -104,15 +115,26 @@ void detect_vulnerable_traffic() {
     log_alert("Vulnerable traffic detection started.");
 
     // Example of detecting traffic on specific ports
-    FILE *fp = popen("tcpdump -i eth0 -nn -v 'tcp port " VULNERABLE_PORTS "'", "r");
-    if (fp) {
-        char buffer[1024];
-        while (fgets(buffer, sizeof(buffer), fp)) {
-            // Highlight vulnerable traffic in red
-            printf("\033[0;31m%s\033[0m", buffer);  // Red color
-        }
-        fclose(fp);
+    FILE *fp = popen("sudo tcpdump -i eth0 -nn -v 'tcp port " VULNERABLE_PORTS "'", "r");
+    if (fp == NULL) {
+        log_alert("Error starting tcpdump.");
+        printf("\033[0;31mError starting tcpdump.\033[0m\n");
+        return;
     }
+
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), fp)) {
+        // Check if the traffic is directed to the honeypot IP
+        if (strstr(buffer, HONEYPOT_IP) != NULL) {
+            // If the traffic is going to the honeypot, do not flag it as vulnerable
+            printf("\033[0;32mHoneypot traffic: %s\033[0m", buffer); // Green color to show it is honeypot traffic
+        } else {
+            // Highlight other vulnerable traffic in red
+            printf("\033[0;31m%s\033[0m", buffer);  // Red color for actual vulnerable traffic
+        }
+    }
+
+    fclose(fp);
     log_alert("Vulnerable traffic detection stopped.");
 }
 
@@ -201,7 +223,7 @@ int main() {
             memset(alert_message, 0, MAX_ALERT_LEN); // Clear the alert after showing it
         }
 
-        printf("1. Define Honeypot and SCADA IPs\n");
+        printf("1. Define Honeypot, SCADA, and PLC IPs\n");
         printf("2. View Trusted IPs\n");
         printf("3. Allow/Disallow IP\n");
         printf("4. View Logs\n");
