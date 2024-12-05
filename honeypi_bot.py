@@ -9,7 +9,8 @@ HONEYPOT_IP = "192.168.96.114"  # Predefined Honeypot IP
 SCADA_IP = "192.168.90.5"       # Predefined SCADA IP
 PLC_IP = "192.168.96.2"         # Predefined PLC IP
 VULNERABLE_PORTS = [80, 502, 102, 135]  # Common attack and vulnerable ports
-TRUSTED_IPS = [HONEYPOT_IP, SCADA_IP, PLC_IP]
+TRUSTED_IPS = [HONEYPOT_IP, SCADA_IP]   # Predefined trusted IPs
+ALLOWED_IPS = []                 # Dynamically managed list of allowed IPs
 INTRUSION_KEYWORDS = ["Nmap", "masscan", "zmap", "attack", "scan", "SYN"]
 
 # Global Variables
@@ -39,8 +40,12 @@ def analyze_packet(packet):
         dst_ip = packet[IP].dst
         dst_port = packet[TCP].dport
 
-        # If the packet is targeting vulnerable ports, raise an alert
-        if dst_port in VULNERABLE_PORTS and src_ip not in TRUSTED_IPS:
+        # If the packet is targeting the PLC and the IP is not allowed, raise an alert
+        if dst_ip == PLC_IP and src_ip not in ALLOWED_IPS:
+            alert_message = f"Unauthorized access attempt from {src_ip} to PLC on port {dst_port}"
+            log_alert(alert_message)
+            redirect_to_honeypot(src_ip)
+        elif dst_port in VULNERABLE_PORTS and src_ip not in TRUSTED_IPS:
             alert_message = f"Suspicious traffic detected from {src_ip} to {dst_ip}:{dst_port}"
             log_alert(alert_message)
             redirect_to_honeypot(src_ip)
@@ -61,21 +66,59 @@ def apply_iptables_rules(ip, action):
     elif action == "REMOVE_REDIRECT":
         # Remove redirection rule
         command = f"sudo iptables -t nat -D PREROUTING -s {ip} -j DNAT --to-destination {HONEYPOT_IP}"
+    elif action == "ALLOW":
+        command = f"sudo iptables -A INPUT -s {ip} -j ACCEPT"
+    elif action == "DISALLOW":
+        command = f"sudo iptables -D INPUT -s {ip} -j ACCEPT"
     else:
         return
     os.system(command)
 
 
+# Add or remove IPs from the allowed list
+def manage_allowed_ips():
+    print("\033[1;34m--- Manage Allowed IPs ---\033[0m")
+    action = input("Enter action (allow/disallow): ").strip().lower()
+    ip = input("Enter the IP address: ").strip()
+
+    if action == "allow":
+        if ip not in ALLOWED_IPS:
+            ALLOWED_IPS.append(ip)
+            apply_iptables_rules(ip, "ALLOW")
+            print(f"IP {ip} has been allowed.")
+        else:
+            print(f"IP {ip} is already in the allowed list.")
+    elif action == "disallow":
+        if ip in ALLOWED_IPS:
+            ALLOWED_IPS.remove(ip)
+            apply_iptables_rules(ip, "DISALLOW")
+            print(f"IP {ip} has been disallowed.")
+        else:
+            print(f"IP {ip} is not in the allowed list.")
+    else:
+        print("Invalid action. Please choose 'allow' or 'disallow'.")
+    input("Press Enter to return to the main menu...")
+
+
+# View live traffic
+def view_live_traffic():
+    print("\033[1;34m--- Live Traffic ---\033[0m")
+    try:
+        sniff(filter="tcp", prn=lambda pkt: pkt.summary(), count=10, store=0)
+    except KeyboardInterrupt:
+        print("\nReturning to main menu...")
+    except Exception as e:
+        print(f"Error: {e}")
+    input("Press Enter to return to the main menu...")
+
+
 # Background network monitoring function
 def network_monitoring():
-    print("\033[0;33mStarting background intrusion detection using Scapy...\033[0m")
+    print("\033[0;33mStarting background intrusion detection...\033[0m")
     log_alert("Intrusion detection started in the background.")
 
     try:
         sniff(filter="tcp", prn=analyze_packet, store=0)  # Start sniffing packets
-    except KeyboardInterrupt:
-        print("\n\033[0;33mStopping network monitoring...\033[0m")
-        log_alert("Network monitoring stopped.")
     except Exception as e:
         log_alert(f"Error in network monitoring: {e}")
 
@@ -111,22 +154,34 @@ def main_menu():
     while True:
         clear_screen()
 
+        # Display title and author
+        print("\033[1;36m" + "=" * 40 + "\033[0m")
+        print("\033[1;36m HoneyPi_Bot \033[0m".center(40))
+        print("\033[0;37m  Author: Sangeevan  \033[0m".center(40))
+        print("\033[1;36m" + "=" * 40 + "\033[0m\n")
+
         # Display any alert message
         if alert_message:
             print(f"\033[0;31mRecent Alert: {alert_message}\033[0m")
             alert_message = ""  # Clear the message after displaying
 
-        print("\033[1;34m--- Honeypot Management Menu ---\033[0m")
+        print("\033[1;34m--- Main Menu ---\033[0m")
         print("1. View Logs")
-        print("2. Clear Screen")
-        print("3. Exit")
+        print("2. Manage Allowed IPs")
+        print("3. View Live Traffic")
+        print("4. Clear Screen")
+        print("5. Exit")
         choice = input("Enter your choice: ").strip()
 
         if choice == "1":
             view_logs()
         elif choice == "2":
-            clear_screen()
+            manage_allowed_ips()
         elif choice == "3":
+            view_live_traffic()
+        elif choice == "4":
+            clear_screen()
+        elif choice == "5":
             exit_application()
         else:
             print("Invalid choice. Please try again.")
