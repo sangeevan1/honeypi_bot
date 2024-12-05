@@ -3,12 +3,13 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
-#include <pthread.h>
+#include <signal.h>
 
 #define LOG_FILE "honeypot_alerts.log"
 #define MAX_IP_LEN 16
 #define MAX_INPUT 100
 #define MAX_ALERT_LEN 200
+#define HONEYPOT_IP "192.168.1.100"  // Simulated honeypot IP
 
 // Function prototypes
 void log_alert(const char *message);
@@ -22,7 +23,7 @@ void start_monitoring();
 void display_heading();
 void exit_application();
 int check_exit(const char *input);
-void *network_monitoring(void *arg);
+void start_network_monitoring();
 
 // Intrusion Alert
 char alert_message[MAX_ALERT_LEN] = "";
@@ -141,35 +142,46 @@ void exit_application() {
     exit(0);
 }
 
-// Network Monitoring (background thread)
-void *network_monitoring(void *arg) {
-    while (1) {
-        // Simulate intrusion detection (e.g., Nmap or scanning tool detection)
-        // Example detection for Nmap or other common attack tools
-        // This part should use tools like `nmap` or `tcpdump` to detect suspicious activities
-        // For simplicity, we are using a basic check
-        FILE *fp = popen("netstat -an | grep ':80 ' | wc -l", "r");
-        if (fp) {
-            int count;
-            fscanf(fp, "%d", &count);
-            fclose(fp);
-            if (count > 5) { // Example threshold for alert (e.g., multiple incoming connections from same IP)
-                snprintf(alert_message, MAX_ALERT_LEN, "Intrusion detected: Multiple connections detected on port 80.");
-                log_alert(alert_message);
-            }
-        }
+// Simulated redirect of vulnerable traffic to Honeypot
+void redirect_to_honeypot() {
+    printf("Redirecting vulnerable traffic to honeypot at IP: %s\n", HONEYPOT_IP);
+    log_alert("Vulnerable traffic redirected to honeypot.");
+}
 
-        sleep(2); // Sleep for a few seconds before checking again
+// Network Monitoring (forked process)
+void start_network_monitoring() {
+    pid_t pid = fork();
+
+    if (pid == 0) {  // Child process (network monitoring)
+        while (1) {
+            // Simulate intrusion detection (e.g., Nmap or scanning tool detection)
+            // Example detection for Nmap or other common attack tools
+            FILE *fp = popen("netstat -an | grep ':80 ' | wc -l", "r");
+            if (fp) {
+                int count;
+                fscanf(fp, "%d", &count);
+                fclose(fp);
+                if (count > 5) { // Example threshold for alert (e.g., multiple incoming connections from same IP)
+                    snprintf(alert_message, MAX_ALERT_LEN, "Intrusion detected: Multiple connections detected on port 80.");
+                    log_alert(alert_message);
+                    redirect_to_honeypot();  // Redirect to honeypot
+                }
+            }
+
+            sleep(2); // Sleep for a few seconds before checking again
+        }
+    } else if (pid < 0) {
+        perror("Fork failed");
+        exit(1);
     }
 }
 
 // Main menu
 int main() {
     int choice;
-    pthread_t monitoring_thread;
 
     // Start network monitoring in the background
-    pthread_create(&monitoring_thread, NULL, network_monitoring, NULL);
+    start_network_monitoring();
 
     while (1) {
         clear_screen();
