@@ -1,7 +1,7 @@
 import os
 import time
 import threading
-from scapy.all import sniff, TCP, IP
+from scapy.all import sniff, TCP, IP, Raw
 
 # Constants
 LOG_FILE = "honeypot_alerts.log"
@@ -11,12 +11,11 @@ PLC_IP = "192.168.96.2"         # Predefined PLC IP
 VULNERABLE_PORTS = [80, 502, 102, 135]  # Common attack and vulnerable ports
 TRUSTED_IPS = [HONEYPOT_IP, SCADA_IP]   # Predefined trusted IPs
 ALLOWED_IPS = []                 # Dynamically managed list of allowed IPs
-INTRUSION_KEYWORDS = ["Nmap", "masscan", "zmap", "attack", "scan", "SYN"]
+INTRUSION_KEYWORDS = ["Nmap", "masscan", "zmap", "metasploit", "sqlmap", "Hydra", "exploit", "reverse shell", "scan", "SYN"]  # Intrusion detection keywords
 
 # Global Variables
 alert_message = ""  # Stores the most recent alert message
 monitoring_thread = None  # Background thread for network monitoring
-
 
 # Function to log alerts to a file
 def log_alert(message):
@@ -44,26 +43,33 @@ def analyze_packet(packet):
         if dst_ip == PLC_IP and src_ip not in ALLOWED_IPS:
             alert_message = f"Unauthorized access attempt from {src_ip} to PLC on port {dst_port}"
             log_alert(alert_message)
-            redirect_to_honeypot(src_ip)
+            redirect_to_honeypot(src_ip, "Unauthorized access")
+
         elif dst_port in VULNERABLE_PORTS and src_ip not in TRUSTED_IPS:
             alert_message = f"Suspicious traffic detected from {src_ip} to {dst_ip}:{dst_port}"
             log_alert(alert_message)
-            redirect_to_honeypot(src_ip)
-        
-        # Handle Honeypot traffic (Not blocking)
-        if dst_ip == HONEYPOT_IP:
-            print(f"\033[1;33mHoneypot traffic from {src_ip} detected!\033[0m")
-        # Check for attacking patterns
+            redirect_to_honeypot(src_ip, "Suspicious traffic")
+
+        # Check for attack tool patterns (e.g., Nmap, masscan, metasploit, sqlmap)
         if any(keyword in str(packet).lower() for keyword in INTRUSION_KEYWORDS):
             alert_message = f"Possible attack detected from {src_ip} (Keyword Match)"
             log_alert(alert_message)
-            redirect_to_honeypot(src_ip)
+            redirect_to_honeypot(src_ip, "Possible Attack Detected")
+
+        # Detect Metasploit reverse shell traffic (common patterns)
+        if packet.haslayer(Raw):
+            payload = packet[Raw].load.decode(errors='ignore')
+            # Detect reverse shell attempts (Metasploit often uses specific payloads)
+            if "metasploit" in payload.lower() or "reverse shell" in payload.lower():
+                alert_message = f"Possible Metasploit reverse shell detected from {src_ip}"
+                log_alert(alert_message)
+                redirect_to_honeypot(src_ip, "Metasploit Reverse Shell Attempt")
 
 
 # Redirect suspicious traffic to the honeypot
-def redirect_to_honeypot(src_ip):
-    print(f"Redirecting traffic from {src_ip} to honeypot ({HONEYPOT_IP}).")
-    log_alert(f"Redirecting traffic from {src_ip} to honeypot.")
+def redirect_to_honeypot(src_ip, reason):
+    print(f"Redirecting traffic from {src_ip} to honeypot ({HONEYPOT_IP}) due to {reason}.")
+    log_alert(f"Redirecting traffic from {src_ip} to honeypot due to {reason}.")
     apply_iptables_rules(src_ip, "REDIRECT")
 
 
@@ -168,31 +174,13 @@ def view_logs():
     input("Press Enter to return to the main menu...")
 
 
-# Clear the screen
-def clear_screen():
-    os.system("clear")
-
-
-# Exit the application
-def exit_application():
-    print("Stopping background monitoring and exiting...")
-    log_alert("Application exited.")
-    time.sleep(1)
-    os.system("sudo iptables -t nat -F")  # Flush iptables rules to stop redirects and allow all traffic
-    exit()
-
-
-# Main menu
+# Main menu function
 def main_menu():
     global alert_message
-
     while True:
-        clear_screen()
-
-        # Display title and author
+        os.system("clear")  # Clear screen
         print("\033[1;36m" + "=" * 40 + "\033[0m")
-        print("\033[1;36m HoneyPi_Bot \033[0m".center(40))
-        print("\033[0;37m  Author: Sangeevan  \033[0m".center(40))
+        print("\033[1;32mHoneypot Monitor \033[0m".center(40))
         print("\033[1;36m" + "=" * 40 + "\033[0m\n")
 
         # Display any alert message
