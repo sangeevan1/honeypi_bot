@@ -18,8 +18,16 @@ VULNERABLE_PORTS = [502, 135, 80]
 # Global variable for alert messages
 alert_message = ""
 
+# Function to clear the screen for better UI experience
+def clear_screen():
+    if sys.platform == "win32":
+        os.system('cls')  # Windows
+    else:
+        os.system('clear')  # Linux/Mac
+
 # Function to display the IP table in a user-friendly format
 def display_ip_table():
+    clear_screen()  # Clear the screen before displaying the table
     print("\nAllowed IPs:".center(50, "="))
     print(f"{'IP Address':<20} {'Status':<10}")
     print("-" * 30)
@@ -31,6 +39,13 @@ def display_ip_table():
     print("-" * 30)
     for ip in DISALLOWED_IPS:
         print(f"{ip:<20} {'Disallowed':<10}")
+
+    print("\nPress 'q' to return to the main menu.")
+    # Wait for user input to return to the main menu
+    while True:
+        user_input = input("Enter 'q' to go back: ").strip().lower()
+        if user_input == 'q':
+            return  # Return to the main menu
 
 # Function to check if an IP is allowed
 def is_ip_allowed(ip):
@@ -81,7 +96,9 @@ def network_monitoring():
 # Function to handle user inputs for adding/removing IPs
 def handle_ip_management():
     while True:
-        print("\n1. View Allowed/Disallowed IP Table")
+        clear_screen()
+        print("Welcome to HoneyPi Bot\n".center(50, "="))
+        print("1. View Allowed/Disallowed IP Table")
         print("2. Add Allowed IP")
         print("3. Add Disallowed IP")
         print("4. Remove Allowed IP")
@@ -91,7 +108,7 @@ def handle_ip_management():
         choice = input("Enter your choice: ")
 
         if choice == "1":
-            display_ip_table()
+            display_ip_table()  # View allowed/disallowed IPs
         elif choice == "2":
             ip = input("Enter IP to allow: ")
             if ip not in ALLOWED_IPS and ip not in DISALLOWED_IPS:
@@ -121,6 +138,7 @@ def handle_ip_management():
             else:
                 print(f"IP {ip} not found in disallowed list.")
         elif choice == "6":
+            print("Exiting program...")
             break
         else:
             print("Invalid choice, please try again.")
