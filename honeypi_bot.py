@@ -39,8 +39,15 @@ def analyze_packet(packet):
         dst_ip = packet[IP].dst
         dst_port = packet[TCP].dport
 
+        # Check if the IP is in the vulnerable range 192.168.95.0/24
+        if src_ip.startswith("192.168.95.") and src_ip not in TRUSTED_IPS:
+            # Suspicious traffic detected from vulnerable network
+            alert_message = f"Suspicious traffic detected from vulnerable network IP {src_ip} to {dst_ip}:{dst_port}"
+            log_alert(alert_message)
+            redirect_to_honeypot(src_ip, "Suspicious traffic from vulnerable network")
+
         # If the packet is targeting the PLC and the IP is not allowed, raise an alert
-        if dst_ip == PLC_IP and src_ip not in ALLOWED_IPS:
+        elif dst_ip == PLC_IP and src_ip not in ALLOWED_IPS:
             alert_message = f"Unauthorized access attempt from {src_ip} to PLC on port {dst_port}"
             log_alert(alert_message)
             redirect_to_honeypot(src_ip, "Unauthorized access")
@@ -165,22 +172,21 @@ def network_monitoring():
 
 # Display logs
 def view_logs():
-    print("\033[1;34m--- Log File ---\033[0m")
-    if os.path.exists(LOG_FILE):
+    print("\033[1;34m--- Log Viewer ---\033[0m")
+    try:
         with open(LOG_FILE, "r") as log_file:
             print(log_file.read())
-    else:
-        print("No logs found.")
+    except Exception as e:
+        print(f"Error reading logs: {e}")
     input("Press Enter to return to the main menu...")
 
 
-# Main menu function
+# Main Menu
 def main_menu():
-    global alert_message
     while True:
         os.system("clear")  # Clear screen
         print("\033[1;36m" + "=" * 40 + "\033[0m")
-        print("\033[1;32mHoneypot Monitor \033[0m".center(40))
+        print("\033[1;35m" + "HoneyPot Monitor \033[0m".center(40))
         print("\033[1;36m" + "=" * 40 + "\033[0m\n")
 
         # Display any alert message
@@ -206,7 +212,7 @@ def main_menu():
         elif choice == "4":
             view_live_traffic()
         elif choice == "5":
-            clear_screen()
+            os.system("clear")  # Clear screen
         elif choice == "6":
             exit_application()
         else:
