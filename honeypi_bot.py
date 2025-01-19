@@ -1,240 +1,155 @@
-import os
 import time
-import threading
-from scapy.all import sniff, TCP, IP, Raw
+import random
+from prettytable import PrettyTable
+from colorama import Fore, Style, init
+from datetime import datetime
+import re
+import subprocess
 
-# Constants
-LOG_FILE = "honeypot_alerts.log"
-HONEYPOT_IP = "192.168.96.114"  # Predefined Honeypot IP
-SCADA_IP = "192.168.90.5"       # Predefined SCADA IP
-PLC_IP = "192.168.96.2"         # Predefined PLC IP
-VULNERABLE_PORTS = [80, 502, 102, 135]  # Common attack and vulnerable ports
-TRUSTED_IPS = [HONEYPOT_IP, SCADA_IP]   # Predefined trusted IPs
-ALLOWED_IPS = []                 # Dynamically managed list of allowed IPs
-INTRUSION_KEYWORDS = ["Nmap", "masscan", "zmap", "metasploit", "sqlmap", "Hydra", "exploit", "reverse shell", "scan", "SYN"]  # Intrusion detection keywords
+# Initialise colorama
+init(autoreset=True)
 
-# Global Variables
-alert_message = ""  # Stores the most recent alert message
-monitoring_thread = None  # Background thread for network monitoring
+blocked_ips = set()
 
-# Function to log alerts to a file
-def log_alert(message):
-    global alert_message
-    alert_message = message  # Set the latest alert message
+def validate_ip(ip):
+    """Validate IP address format."""
+    pattern = r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
+    if not re.match(pattern, ip):
+        return False
+    parts = ip.split(".")
+    return all(0 <= int(part) <= 255 for part in parts)
 
-    with open(LOG_FILE, "a") as log_file:
-        timestamp = time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime())
-        log_file.write(f"{timestamp} {message}\n")
-
-    print(f"\033[0;31mALERT: {message}\033[0m")
-
-
-# Packet analysis function
-def analyze_packet(packet):
-    global alert_message
-
-    # Check for TCP packets
-    if packet.haslayer(TCP) and packet.haslayer(IP):
-        src_ip = packet[IP].src
-        dst_ip = packet[IP].dst
-        dst_port = packet[TCP].dport
-
-        # Check if the IP is in the vulnerable range 192.168.95.0/24
-        if src_ip.startswith("192.168.95.") and src_ip not in TRUSTED_IPS:
-            # Suspicious traffic detected from vulnerable network
-            alert_message = f"Suspicious traffic detected from vulnerable network IP {src_ip} to {dst_ip}:{dst_port}"
-            log_alert(alert_message)
-            redirect_to_honeypot(src_ip, "Suspicious traffic from vulnerable network")
-
-        # If the packet is targeting the PLC and the IP is not allowed, raise an alert
-        elif dst_ip == PLC_IP and src_ip not in ALLOWED_IPS:
-            alert_message = f"Unauthorized access attempt from {src_ip} to PLC on port {dst_port}"
-            log_alert(alert_message)
-            redirect_to_honeypot(src_ip, "Unauthorized access")
-
-        elif dst_port in VULNERABLE_PORTS and src_ip not in TRUSTED_IPS:
-            alert_message = f"Suspicious traffic detected from {src_ip} to {dst_ip}:{dst_port}"
-            log_alert(alert_message)
-            redirect_to_honeypot(src_ip, "Suspicious traffic")
-
-        # Check for attack tool patterns (e.g., Nmap, masscan, metasploit, sqlmap)
-        if any(keyword in str(packet).lower() for keyword in INTRUSION_KEYWORDS):
-            alert_message = f"Possible attack detected from {src_ip} (Keyword Match)"
-            log_alert(alert_message)
-            redirect_to_honeypot(src_ip, "Possible Attack Detected")
-
-        # Detect Metasploit reverse shell traffic (common patterns)
-        if packet.haslayer(Raw):
-            payload = packet[Raw].load.decode(errors='ignore')
-            # Detect reverse shell attempts (Metasploit often uses specific payloads)
-            if "metasploit" in payload.lower() or "reverse shell" in payload.lower():
-                alert_message = f"Possible Metasploit reverse shell detected from {src_ip}"
-                log_alert(alert_message)
-                redirect_to_honeypot(src_ip, "Metasploit Reverse Shell Attempt")
-
-
-# Redirect suspicious traffic to the honeypot
-def redirect_to_honeypot(src_ip, reason):
-    print(f"Redirecting traffic from {src_ip} to honeypot ({HONEYPOT_IP}) due to {reason}.")
-    log_alert(f"Redirecting traffic from {src_ip} to honeypot due to {reason}.")
-    apply_iptables_rules(src_ip, "REDIRECT")
-
-
-# Apply iptables rules
-def apply_iptables_rules(ip, action):
-    if action == "REDIRECT":
-        # Redirect traffic from the source IP to the honeypot
-        command = f"sudo iptables -t nat -A PREROUTING -s {ip} -j DNAT --to-destination {HONEYPOT_IP}"
-    elif action == "REMOVE_REDIRECT":
-        # Remove redirection rule
-        command = f"sudo iptables -t nat -D PREROUTING -s {ip} -j DNAT --to-destination {HONEYPOT_IP}"
-    elif action == "ALLOW":
-        command = f"sudo iptables -A INPUT -s {ip} -j ACCEPT"
-    elif action == "DISALLOW":
-        command = f"sudo iptables -D INPUT -s {ip} -j ACCEPT"
-    else:
+def block_ip(ip):
+    """Block an IP address."""
+    if ip in blocked_ips:
+        print(Fore.YELLOW + f"{ip} is already blocked.")
         return
-    os.system(command)
+    print("Blocking IP... Please wait.")
+    time.sleep(2)  # Simulate delay
+    blocked_ips.add(ip)
+    subprocess.run(["iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print(Fore.GREEN + f"{ip} has been blocked.")
 
+def unblock_ip(ip):
+    """Unblock an IP address."""
+    if ip not in blocked_ips:
+        print(Fore.YELLOW + f"{ip} is not blocked.")
+        return
+    print("Unblocking IP... Please wait.")
+    time.sleep(2)  # Simulate delay
+    blocked_ips.remove(ip)
+    subprocess.run(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print(Fore.GREEN + f"{ip} has been unblocked.")
 
-# Add or remove IPs from the allowed list
-def manage_allowed_ips():
-    print("\033[1;34m--- Manage Allowed IPs ---\033[0m")
-    action = input("Enter action (allow/disallow): ").strip().lower()
-    ip = input("Enter the IP address: ").strip()
+def generate_live_log():
+    """Generate a simulated log entry."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    source_ip = f"192.168.{random.randint(0, 99)}.{random.randint(1, 255)}"
+    dest_ip = f"192.168.96.{random.randint(1, 255)}"
+    event_types = ["INFO", "WARNING", "ALERT"]
+    actions = [
+        "SCADA sent START command to PLC.",
+        "SCADA sent STOP command to PLC.",
+        "PLC responded with ACK.",
+        "Unauthorised command received.",
+        "Port scanning detected.",
+        "Data exfiltration attempt detected.",
+    ]
+    event_type = random.choice(event_types)
+    action = random.choice(actions)
+    suspicious = "Unauthorised" in action or "scanning" in action or "exfiltration" in action
+    return {
+        "time": now,
+        "event_type": event_type,
+        "source_ip": source_ip,
+        "dest_ip": dest_ip,
+        "action": action,
+        "suspicious": suspicious,
+    }
 
-    if action == "allow":
-        if ip not in ALLOWED_IPS:
-            ALLOWED_IPS.append(ip)
-            apply_iptables_rules(ip, "ALLOW")
-            print(f"IP {ip} has been allowed.")
-        else:
-            print(f"IP {ip} is already in the allowed list.")
-    elif action == "disallow":
-        if ip in ALLOWED_IPS:
-            ALLOWED_IPS.remove(ip)
-            apply_iptables_rules(ip, "DISALLOW")
-            print(f"IP {ip} has been disallowed.")
-        else:
-            print(f"IP {ip} is not in the allowed list.")
-    else:
-        print("Invalid action. Please choose 'allow' or 'disallow'.")
-    input("Press Enter to return to the main menu...")
+def show_soc():
+    """Real-time SOC analysis."""
+    print(Fore.BLUE + "--- SOC Analysis ---")
+    print("Monitoring activities (Press Ctrl+C to stop):")
 
-
-# Display the allowed and disallowed IPs in table format
-def view_allowed_ips():
-    print("\033[1;34m--- Allowed IPs ---\033[0m")
-    print("\033[1;32mIP Address \t\t Status\033[0m")
-    for ip in ALLOWED_IPS:
-        print(f"{ip} \t\t Allowed")
-    print("\nPress Enter to return to the main menu...")
-
-
-# View live traffic
-def view_live_traffic():
-    print("\033[1;34m--- Live Traffic ---\033[0m")
+    table = PrettyTable(["Time", "Event Type", "Source", "Destination", "Action"])
+    table.align = "l"
     try:
-        sniff(filter="tcp", prn=live_traffic_view, count=10, store=0)
-    except KeyboardInterrupt:
-        print("\nReturning to main menu...")
-    except Exception as e:
-        print(f"Error: {e}")
-    input("Press Enter to return to the main menu...")
-
-
-# Live traffic view with color coding
-def live_traffic_view(pkt):
-    if pkt.haslayer(TCP) and pkt.haslayer(IP):
-        src_ip = pkt[IP].src
-        dst_ip = pkt[IP].dst
-        dst_port = pkt[TCP].dport
-
-        # Display honeypot traffic in yellow
-        if dst_ip == HONEYPOT_IP:
-            print(f"\033[1;33mHoneypot traffic from {src_ip} detected!\033[0m")
-
-        # Vulnerable traffic (even from allowed IPs) in red to PLC
-        if dst_ip == PLC_IP and dst_port in VULNERABLE_PORTS:
-            print(f"\033[0;31mVulnerable traffic from {src_ip} detected to PLC on port {dst_port}\033[0m")
-
-
-# Background network monitoring function
-def network_monitoring():
-    print("\033[0;33mStarting background intrusion detection...\033[0m")
-    log_alert("Intrusion detection started in the background.")
-
-    try:
-        sniff(filter="tcp", prn=analyze_packet, store=0)  # Start sniffing packets
-    except Exception as e:
-        log_alert(f"Error in network monitoring: {e}")
-
-
-# Display logs
-def view_logs():
-    print("\033[1;34m--- Log Viewer ---\033[0m")
-    try:
-        with open(LOG_FILE, "r") as log_file:
-            print(log_file.read())
-    except Exception as e:
-        print(f"Error reading logs: {e}")
-    input("Press Enter to return to the main menu...")
-
-
-# Main Menu
-def main_menu():
-    while True:
-        os.system("clear")  # Clear screen
-        print("\033[1;36m" + "=" * 40 + "\033[0m")
-        print("\033[1;35m" + "HoneyPot Monitor \033[0m".center(40))
-        print("\033[1;36m" + "=" * 40 + "\033[0m\n")
-
-        # Display any alert message
-        if alert_message:
-            print(f"\033[0;31mRecent Alert: {alert_message}\033[0m")
-            alert_message = ""  # Clear the message after displaying
-
-        print("\033[1;34m--- Main Menu ---\033[0m")
-        print("1. View Logs")
-        print("2. Manage Allowed IPs")
-        print("3. View Allowed IPs in Table")
-        print("4. View Live Traffic")
-        print("5. Clear Screen")
-        print("6. Exit")
-        choice = input("Enter your choice: ").strip()
-
-        if choice == "1":
-            view_logs()
-        elif choice == "2":
-            manage_allowed_ips()
-        elif choice == "3":
-            view_allowed_ips()
-        elif choice == "4":
-            view_live_traffic()
-        elif choice == "5":
-            os.system("clear")  # Clear screen
-        elif choice == "6":
-            exit_application()
-        else:
-            print("Invalid choice. Please try again.")
+        while True:
+            log = generate_live_log()
+            table.clear_rows()
+            row_colour = Fore.RED if log["suspicious"] else Fore.WHITE
+            table.add_row([log["time"], log["event_type"], log["source_ip"], log["dest_ip"], log["action"]])
+            print(row_colour + table.get_string())
+            if log["suspicious"]:
+                print(Fore.RED + f"ALERT: Suspicious activity detected - {log['action']}")
             time.sleep(1)
+    except KeyboardInterrupt:
+        print(Fore.YELLOW + "\nStopping SOC analysis and returning to main menu...")
 
+def show_logs():
+    """Display historical logs in a table format."""
+    print(Fore.BLUE + "--- Log Viewer ---")
+    logs = [
+        {"Time": "2025-01-19 12:00:00", "Event": "SCADA sent START", "Source": "192.168.95.1", "Dest": "192.168.96.1"},
+        {"Time": "2025-01-19 12:01:00", "Event": "PLC responded ACK", "Source": "192.168.96.1", "Dest": "192.168.95.1"},
+        {"Time": "2025-01-19 12:02:00", "Event": "Port scanning detected", "Source": "192.168.99.1", "Dest": "192.168.96.1"},
+    ]
+    table = PrettyTable(["Time", "Event", "Source", "Destination"])
+    for log in logs:
+        table.add_row([log["Time"], log["Event"], log["Source"], log["Dest"]])
+    print(table)
+    input("\nPress Enter to return to the main menu...")
 
-# Start the background monitoring thread
-def start_monitoring():
-    global monitoring_thread
-    monitoring_thread = threading.Thread(target=network_monitoring, daemon=True)
-    monitoring_thread.start()
+def ip_blocking_manager():
+    """Manage IP blocking and unblocking."""
+    while True:
+        print(Fore.BLUE + "--- IP Blocking Manager ---")
+        print("Blocked IPs:")
+        for ip in blocked_ips:
+            print(f" - {ip}")
+        print("\nOptions:")
+        print("1. Block an IP")
+        print("2. Unblock an IP")
+        print("3. Return to Main Menu")
+        choice = input("Enter your choice: ")
+        if choice == "1":
+            ip = input("Enter IP to block: ")
+            if validate_ip(ip):
+                block_ip(ip)
+            else:
+                print(Fore.RED + "Invalid IP format. Try again.")
+        elif choice == "2":
+            ip = input("Enter IP to unblock: ")
+            if validate_ip(ip):
+                unblock_ip(ip)
+            else:
+                print(Fore.RED + "Invalid IP format. Try again.")
+        elif choice == "3":
+            break
+        else:
+            print(Fore.RED + "Invalid choice. Try again.")
 
+def main_menu():
+    """Display the main menu."""
+    while True:
+        print(Fore.GREEN + "\n--- HoneyPi-Bot ---")
+        print("1. SOC Analysis (Real-Time)")
+        print("2. View Logs")
+        print("3. Manage IP Blocking")
+        print("4. Exit")
+        choice = input("Enter your choice: ")
+        if choice == "1":
+            show_soc()
+        elif choice == "2":
+            show_logs()
+        elif choice == "3":
+            ip_blocking_manager()
+        elif choice == "4":
+            print("Exiting HoneyPi-Bot. Goodbye!")
+            break
+        else:
+            print(Fore.RED + "Invalid choice. Please try again.")
 
 if __name__ == "__main__":
-    # Ensure Scapy runs with root privileges
-    if os.geteuid() != 0:
-        print("This script must be run as root. Please use sudo.")
-        exit(1)
-
-    # Start background network monitoring
-    start_monitoring()
-
-    # Launch the main menu
     main_menu()
