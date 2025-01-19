@@ -1,11 +1,10 @@
-import random
-from prettytable import PrettyTable
-from colorama import Fore, Style, init
-from datetime import datetime
-import re
 import subprocess
+import time
+import re
+from prettytable import PrettyTable
+from colorama import Fore, init
 
-# Initialise colorama
+# Initialise colorama for coloured output
 init(autoreset=True)
 
 blocked_ips = set()
@@ -40,58 +39,78 @@ def unblock_ip(ip):
     subprocess.run(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print(Fore.GREEN + f"{ip} has been unblocked.")
 
-def generate_live_log():
-    """Generate a simulated log entry."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    source_ip = f"192.168.{random.randint(0, 99)}.{random.randint(1, 255)}"
-    dest_ip = f"192.168.96.{random.randint(1, 255)}"
-    event_types = ["INFO", "WARNING", "ALERT"]
-    actions = [
-        "SCADA sent START command to PLC.",
-        "SCADA sent STOP command to PLC.",
-        "PLC responded with ACK.",
-        "Unauthorised command received.",
-        "Port scanning detected.",
-        "Data exfiltration attempt detected.",
-    ]
-    event_type = random.choice(event_types)
-    action = random.choice(actions)
-    suspicious = "Unauthorised" in action or "scanning" in action or "exfiltration" in action
-    return {
-        "time": now,
-        "event_type": event_type,
-        "source_ip": source_ip,
-        "dest_ip": dest_ip,
-        "action": action,
-        "suspicious": suspicious,
-    }
+def analyze_packet(packet):
+    """Analyze the packet for potential incidents."""
+    suspicious = False
+    incident = ""
 
-def show_soc():
-    """Real-time SOC analysis."""
-    print(Fore.BLUE + "--- SOC Analysis ---")
-    print("Monitoring activities (Press Ctrl+C to stop):")
+    # Basic checks for suspicious patterns (can be expanded further)
+    if "ICMP" in packet:
+        suspicious = True
+        incident = "Potential Ping Flood (ICMP) detected."
 
-    table = PrettyTable(["Time", "Event Type", "Source", "Destination", "Action"])
-    table.align = "l"
+    # Port scanning detection: Look for multiple connection attempts from the same source IP
+    if "SYN" in packet and "Connection Request" in packet:
+        suspicious = True
+        incident = "Potential Port Scanning detected."
+
+    # Further incident detection rules can be added here
+
+    return suspicious, incident
+
+def monitor_traffic():
+    """Monitor real-time network traffic and print live incidents."""
+    print(Fore.BLUE + "--- Real-Time SOC Analysis ---")
+    print("Monitoring network traffic... (Press Ctrl+C to stop)")
+
+    table = PrettyTable(["Time", "Source IP", "Destination IP", "Protocol", "Incident"])
+
+    # Start capturing traffic using tcpdump (adjust interface as needed)
+    process = subprocess.Popen(
+        ["sudo", "tcpdump", "-i", "eth0", "-n", "-v", "tcp", "icmp"],  # Change 'eth0' as necessary
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True
+    )
+
     try:
         while True:
-            log = generate_live_log()
-            table.clear_rows()
-            row_colour = Fore.RED if log["suspicious"] else Fore.WHITE
-            table.add_row([log["time"], log["event_type"], log["source_ip"], log["dest_ip"], log["action"]])
-            print(row_colour + table.get_string())
-            if log["suspicious"]:
-                print(Fore.RED + f"ALERT: Suspicious activity detected - {log['action']}")
+            # Read each line of output from tcpdump
+            packet = process.stdout.readline()
+
+            if packet == '' and process.poll() is not None:
+                break
+            if packet:
+                # Extract relevant information from the packet (source/destination IP, protocol, etc.)
+                match = re.search(r'IP (\S+) > (\S+): (\S+)', packet)
+                if match:
+                    source_ip = match.group(1)
+                    dest_ip = match.group(2)
+                    protocol = match.group(3)
+                    
+                    # Analyze the packet for incidents
+                    suspicious, incident = analyze_packet(packet)
+
+                    # If suspicious activity is detected, print it
+                    if suspicious:
+                        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+                        table.add_row([current_time, source_ip, dest_ip, protocol, incident])
+                        print(Fore.RED + table.get_string())
+                        print(Fore.RED + f"ALERT: {incident}")
+            
             time.sleep(1)
+
     except KeyboardInterrupt:
         print(Fore.YELLOW + "\nStopping SOC analysis and returning to main menu...")
+        process.kill()
 
 def show_logs():
     """Display historical logs in a table format."""
     print(Fore.BLUE + "--- Log Viewer ---")
   
+    # Assuming you want to show logs from a saved file or another source. Modify accordingly.
     table = PrettyTable(["Time", "Event", "Source", "Destination"])
-    for log in logs:
+    for log in logs:  # Assuming logs is defined elsewhere as a list of dicts
         table.add_row([log["Time"], log["Event"], log["Source"], log["Dest"]])
     print(table)
     input("\nPress Enter to return to the main menu...")
@@ -134,8 +153,9 @@ def main_menu():
         print("3. Manage IP Blocking")
         print("4. Exit")
         choice = input("Enter your choice: ")
+
         if choice == "1":
-            show_soc()
+            monitor_traffic()
         elif choice == "2":
             show_logs()
         elif choice == "3":
