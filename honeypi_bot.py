@@ -90,11 +90,7 @@ def show_soc():
 def show_logs():
     """Display historical logs in a table format."""
     print(Fore.BLUE + "--- Log Viewer ---")
-    logs = [
-        {"Time": "2025-01-19 12:00:00", "Event": "SCADA sent START", "Source": "192.168.95.1", "Dest": "192.168.96.1"},
-        {"Time": "2025-01-19 12:01:00", "Event": "PLC responded ACK", "Source": "192.168.96.1", "Dest": "192.168.95.1"},
-        {"Time": "2025-01-19 12:02:00", "Event": "Port scanning detected", "Source": "192.168.99.1", "Dest": "192.168.96.1"},
-    ]
+  
     table = PrettyTable(["Time", "Event", "Source", "Destination"])
     for log in logs:
         table.add_row([log["Time"], log["Event"], log["Source"], log["Dest"]])
