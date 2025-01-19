@@ -1,10 +1,10 @@
+import re
+import os
 import time
-import random
+import subprocess
 from prettytable import PrettyTable
 from colorama import Fore, Style, init
 from datetime import datetime
-import re
-import subprocess
 
 # Initialise colorama
 init(autoreset=True)
@@ -27,7 +27,7 @@ def block_ip(ip):
     print("Blocking IP... Please wait.")
     time.sleep(2)  # Simulate delay
     blocked_ips.add(ip)
-    subprocess.run(["iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(["iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"])
     print(Fore.GREEN + f"{ip} has been blocked.")
 
 def unblock_ip(ip):
@@ -38,87 +38,46 @@ def unblock_ip(ip):
     print("Unblocking IP... Please wait.")
     time.sleep(2)  # Simulate delay
     blocked_ips.remove(ip)
-    subprocess.run(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"])
     print(Fore.GREEN + f"{ip} has been unblocked.")
 
-def analyze_packet(packet):
-    """Analyze the packet for potential incidents."""
-    suspicious = False
-    incident = ""
-
-    # Basic checks for suspicious patterns (can be expanded further)
-    if "ICMP" in packet:
-        suspicious = True
-        incident = "Potential Ping Flood (ICMP) detected."
-
-    # Port scanning detection: Look for multiple connection attempts from the same source IP
-    if "SYN" in packet and "Connection Request" in packet:
-        suspicious = True
-        incident = "Potential Port Scanning detected."
-
-    # Further incident detection rules can be added here
-
-    return suspicious, incident
-
-def monitor_traffic():
-    """Monitor real-time network traffic and print live incidents."""
-    print(Fore.BLUE + "--- Real-Time SOC Analysis ---")
-    print("Monitoring network traffic... (Press Ctrl+C to stop)")
-
-    table = PrettyTable(["Time", "Source IP", "Destination IP", "Protocol", "Incident"])
-
-    # Start capturing traffic using tcpdump (adjust interface as needed)
-    process = subprocess.Popen(
-        ["sudo", "tcpdump", "-i", "eth0", "-n", "-v", "tcp", "icmp"],  # Change 'eth0' as necessary
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True
-    )
-
+def show_soc():
+    """Simulate SOC analysis and log activity."""
+    print(Fore.BLUE + "--- SOC Analysis ---")
+    print("Monitoring activities (Press Ctrl+C to stop):")
     try:
         while True:
-            # Read each line of output from tcpdump
-            packet = process.stdout.readline()
-
-            if packet == '' and process.poll() is not None:
-                break
-            if packet:
-                # Extract relevant information from the packet (source/destination IP, protocol, etc.)
-                match = re.search(r'IP (\S+) > (\S+): (\S+)', packet)
-                if match:
-                    source_ip = match.group(1)
-                    dest_ip = match.group(2)
-                    protocol = match.group(3)
-                    
-                    # Analyze the packet for incidents
-                    suspicious, incident = analyze_packet(packet)
-
-                    # If suspicious activity is detected, print it
-                    if suspicious:
-                        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-                        table.add_row([current_time, source_ip, dest_ip, protocol, incident])
-                        print(Fore.RED + table.get_string())
-                        print(Fore.RED + f"ALERT: {incident}")
-            
+            log = generate_soc_log()
+            print(log)
             time.sleep(1)
-
     except KeyboardInterrupt:
-        print(Fore.YELLOW + "\nStopping SOC analysis and returning to main menu...")
-        process.kill()
+        print(Fore.YELLOW + "\nReturning to main menu...")
+
+def generate_soc_log():
+    """Generate a simulated SOC log entry."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    event_type = "INFO"  # Could be INFO, WARNING, ALERT, etc.
+    source_ip = f"192.168.{95}.{3}"
+    dest_ip = f"192.168.{96}.{2}"
+    action = "SCADA sent STOP command to PLC."
+    return f"{now} | {event_type} | Source: {source_ip} | Destination: {dest_ip} | Action: {action}"
 
 def show_logs():
-    """Display historical logs in a table format."""
+    """Display all logs in a table format."""
     print(Fore.BLUE + "--- Log Viewer ---")
     logs = [
-        {"Time": "2025-01-19 12:00:00", "Event": "SCADA sent START", "Source": "192.168.95.1", "Dest": "192.168.96.1"},
+        {"Time": "2025-01-19 12:00:00", "Event": "SCADA sent STOP", "Source": "192.168.95.1", "Dest": "192.168.96.1"},
         {"Time": "2025-01-19 12:01:00", "Event": "PLC responded ACK", "Source": "192.168.96.1", "Dest": "192.168.95.1"},
-        {"Time": "2025-01-19 12:02:00", "Event": "Port scanning detected", "Source": "192.168.99.1", "Dest": "192.168.96.1"},
     ]
     table = PrettyTable(["Time", "Event", "Source", "Destination"])
     for log in logs:
         table.add_row([log["Time"], log["Event"], log["Source"], log["Dest"]])
     print(table)
     input("\nPress Enter to return to the main menu...")
+
+def suspicious_traffic_alert():
+    """Simulate detecting suspicious traffic."""
+    print(Fore.RED + "ALERT: Suspicious traffic detected from 192.168.99.1 to 192.168.96.2")
 
 def ip_blocking_manager():
     """Manage IP blocking and unblocking."""
@@ -153,14 +112,13 @@ def main_menu():
     """Display the main menu."""
     while True:
         print(Fore.GREEN + "\n--- HoneyPi-Bot ---")
-        print("1. SOC Analysis (Real-Time)")
+        print("1. SOC Analysis (Monitor PLC and SCADA)")
         print("2. View Logs")
         print("3. Manage IP Blocking")
         print("4. Exit")
         choice = input("Enter your choice: ")
-
         if choice == "1":
-            monitor_traffic()
+            show_soc()
         elif choice == "2":
             show_logs()
         elif choice == "3":
