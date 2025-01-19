@@ -77,11 +77,11 @@ def show_soc():
     try:
         while True:
             log = generate_live_log()
-            table.clear_rows()
-            row_colour = Fore.RED if log["suspicious"] else Fore.WHITE
-            table.add_row([log["time"], log["event_type"], log["source_ip"], log["dest_ip"], log["action"]])
-            print(row_colour + table.get_string())
-            if log["suspicious"]:
+            if log["suspicious"]:  # Only show suspicious logs
+                table.clear_rows()
+                row_colour = Fore.RED if log["suspicious"] else Fore.WHITE
+                table.add_row([log["time"], log["event_type"], log["source_ip"], log["dest_ip"], log["action"]])
+                print(row_colour + table.get_string())
                 print(Fore.RED + f"ALERT: Suspicious activity detected - {log['action']}")
             time.sleep(1)
     except KeyboardInterrupt:
