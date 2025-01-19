@@ -57,9 +57,15 @@ def generate_soc_log():
     """Generate a simulated SOC log entry."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     event_type = "INFO"  # Could be INFO, WARNING, ALERT, etc.
-    source_ip = f"192.168.{95}.{3}"
-    dest_ip = f"192.168.{96}.{2}"
-    action = "SCADA sent STOP command to PLC."
+    source_ip = f"192.168.{random.randint(90, 99)}.{random.randint(1, 255)}"
+    dest_ip = f"192.168.{random.randint(90, 99)}.{random.randint(1, 255)}"
+    action = random.choice([
+        "SCADA sent STOP command to PLC.",
+        "PLC responded with ACK.",
+        "Unauthorized access detected.",
+        "Port scanning detected.",
+        "Malware communication attempt.",
+    ])
     return f"{now} | {event_type} | Source: {source_ip} | Destination: {dest_ip} | Action: {action}"
 
 def show_logs():
@@ -68,6 +74,7 @@ def show_logs():
     logs = [
         {"Time": "2025-01-19 12:00:00", "Event": "SCADA sent STOP", "Source": "192.168.95.1", "Dest": "192.168.96.1"},
         {"Time": "2025-01-19 12:01:00", "Event": "PLC responded ACK", "Source": "192.168.96.1", "Dest": "192.168.95.1"},
+        {"Time": "2025-01-19 12:02:00", "Event": "Port scanning detected", "Source": "192.168.99.1", "Dest": "192.168.96.1"},
     ]
     table = PrettyTable(["Time", "Event", "Source", "Destination"])
     for log in logs:
