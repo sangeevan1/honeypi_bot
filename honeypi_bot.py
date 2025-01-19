@@ -4,7 +4,6 @@ from colorama import Fore, Style, init
 from datetime import datetime
 import re
 import subprocess
-import time
 
 # Initialise colorama
 init(autoreset=True)
@@ -83,9 +82,19 @@ def show_soc():
             print(row_colour + table.get_string())
             if log["suspicious"]:
                 print(Fore.RED + f"ALERT: Suspicious activity detected - {log['action']}")
-            time.sleep(1)  # Simulate a delay of 1 second before generating next log
+            time.sleep(1)
     except KeyboardInterrupt:
         print(Fore.YELLOW + "\nStopping SOC analysis and returning to main menu...")
+
+def show_logs():
+    """Display historical logs in a table format."""
+    print(Fore.BLUE + "--- Log Viewer ---")
+  
+    table = PrettyTable(["Time", "Event", "Source", "Destination"])
+    for log in logs:
+        table.add_row([log["Time"], log["Event"], log["Source"], log["Dest"]])
+    print(table)
+    input("\nPress Enter to return to the main menu...")
 
 def ip_blocking_manager():
     """Manage IP blocking and unblocking."""
@@ -121,14 +130,17 @@ def main_menu():
     while True:
         print(Fore.GREEN + "\n--- HoneyPi-Bot ---")
         print("1. SOC Analysis (Real-Time)")
-        print("2. Manage IP Blocking")
-        print("3. Exit")
+        print("2. View Logs")
+        print("3. Manage IP Blocking")
+        print("4. Exit")
         choice = input("Enter your choice: ")
         if choice == "1":
-            show_soc()  # Show live SOC logs
+            show_soc()
         elif choice == "2":
-            ip_blocking_manager()
+            show_logs()
         elif choice == "3":
+            ip_blocking_manager()
+        elif choice == "4":
             print("Exiting HoneyPi-Bot. Goodbye!")
             break
         else:
