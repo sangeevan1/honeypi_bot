@@ -1,17 +1,16 @@
-import re
-import os
 import time
-import subprocess
+import random
 from prettytable import PrettyTable
 from colorama import Fore, Style, init
 from datetime import datetime
+import re
+import subprocess
 
 # Initialise colorama
 init(autoreset=True)
 
 blocked_ips = set()
 
-# Validate IP address format
 def validate_ip(ip):
     """Validate IP address format."""
     pattern = r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
@@ -20,7 +19,6 @@ def validate_ip(ip):
     parts = ip.split(".")
     return all(0 <= int(part) <= 255 for part in parts)
 
-# Block an IP address
 def block_ip(ip):
     """Block an IP address."""
     if ip in blocked_ips:
@@ -29,10 +27,9 @@ def block_ip(ip):
     print("Blocking IP... Please wait.")
     time.sleep(2)  # Simulate delay
     blocked_ips.add(ip)
-    subprocess.run(["iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"])
+    subprocess.run(["iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print(Fore.GREEN + f"{ip} has been blocked.")
 
-# Unblock an IP address
 def unblock_ip(ip):
     """Unblock an IP address."""
     if ip not in blocked_ips:
@@ -41,87 +38,69 @@ def unblock_ip(ip):
     print("Unblocking IP... Please wait.")
     time.sleep(2)  # Simulate delay
     blocked_ips.remove(ip)
-    subprocess.run(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"])
+    subprocess.run(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print(Fore.GREEN + f"{ip} has been unblocked.")
 
-# Real-time SOC Analysis (simulating log collection from syslog or network monitoring tools)
+def generate_live_log():
+    """Generate a simulated log entry."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    source_ip = f"192.168.{random.randint(0, 99)}.{random.randint(1, 255)}"
+    dest_ip = f"192.168.96.{random.randint(1, 255)}"
+    event_types = ["INFO", "WARNING", "ALERT"]
+    actions = [
+        "SCADA sent START command to PLC.",
+        "SCADA sent STOP command to PLC.",
+        "PLC responded with ACK.",
+        "Unauthorised command received.",
+        "Port scanning detected.",
+        "Data exfiltration attempt detected.",
+    ]
+    event_type = random.choice(event_types)
+    action = random.choice(actions)
+    suspicious = "Unauthorised" in action or "scanning" in action or "exfiltration" in action
+    return {
+        "time": now,
+        "event_type": event_type,
+        "source_ip": source_ip,
+        "dest_ip": dest_ip,
+        "action": action,
+        "suspicious": suspicious,
+    }
+
 def show_soc():
-    """Simulate SOC analysis and log activity."""
+    """Real-time SOC analysis."""
     print(Fore.BLUE + "--- SOC Analysis ---")
     print("Monitoring activities (Press Ctrl+C to stop):")
+
+    table = PrettyTable(["Time", "Event Type", "Source", "Destination", "Action"])
+    table.align = "l"
     try:
         while True:
-            log = generate_real_soc_log()
-            print(log)
+            log = generate_live_log()
+            table.clear_rows()
+            row_colour = Fore.RED if log["suspicious"] else Fore.WHITE
+            table.add_row([log["time"], log["event_type"], log["source_ip"], log["dest_ip"], log["action"]])
+            print(row_colour + table.get_string())
+            if log["suspicious"]:
+                print(Fore.RED + f"ALERT: Suspicious activity detected - {log['action']}")
             time.sleep(1)
     except KeyboardInterrupt:
-        print(Fore.YELLOW + "\nReturning to main menu...")
+        print(Fore.YELLOW + "\nStopping SOC analysis and returning to main menu...")
 
-# Generate a real SOC log (this can be replaced with real data collection from syslog, tcpdump, etc.)
-def generate_real_soc_log():
-    """Simulate generating a real SOC log entry from system logs or network monitoring tools."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    # Simulate fetching data from logs (replace with actual log fetching)
-    log_entry = fetch_real_log_entry()
-    
-    # `log_entry` is a tuple, so access the action (third item) to check for 'unauthorized'
-    source_ip, dest_ip, action = log_entry
-    
-    if "unauthorized" in action.lower():  # Apply `.lower()` only to `action`
-        event_type = "ALERT"
-    else:
-        event_type = "INFO"
-    
-    return f"{now} | {event_type} | Source: {source_ip} | Destination: {dest_ip} | Action: {action}"
-
-def fetch_real_log_entry():
-    """Simulate fetching a real log entry from network tools (syslog, tcpdump, etc.)."""
-    # Example of a real log entry - in practice, replace this with actual log parsing
-    source_ip = "192.168.95.100"
-    dest_ip = "192.168.96.200"
-    action = "Unauthorized access attempt detected"
-    return source_ip, dest_ip, action
-
-# Display logs in a table format
 def show_logs():
-    """Display all logs in a table format."""
+    """Display historical logs in a table format."""
     print(Fore.BLUE + "--- Log Viewer ---")
-    
-    # Simulate reading real log files (replace with actual file reading)
-    logs = read_real_logs_from_file("/var/log/syslog")
-    
+    logs = [
+        {"Time": "2025-01-19 12:00:00", "Event": "SCADA sent START", "Source": "192.168.95.1", "Dest": "192.168.96.1"},
+        {"Time": "2025-01-19 12:01:00", "Event": "PLC responded ACK", "Source": "192.168.96.1", "Dest": "192.168.95.1"},
+        {"Time": "2025-01-19 12:02:00", "Event": "Port scanning detected", "Source": "192.168.99.1", "Dest": "192.168.96.1"},
+    ]
     table = PrettyTable(["Time", "Event", "Source", "Destination"])
     for log in logs:
         table.add_row([log["Time"], log["Event"], log["Source"], log["Dest"]])
-    
     print(table)
     input("\nPress Enter to return to the main menu...")
 
-def read_real_logs_from_file(log_file_path):
-    """Read real logs from a log file (e.g., syslog, or custom SCADA logs)."""
-    logs = []
-    try:
-        with open(log_file_path, "r") as file:
-            for line in file.readlines():
-                # Simulate extracting relevant info from a real log
-                if "unauthorized" in line:
-                    logs.append({
-                        "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "Event": "Unauthorized access attempt",
-                        "Source": "192.168.95.100",
-                        "Dest": "192.168.96.200",
-                    })
-    except FileNotFoundError:
-        print(Fore.RED + "Log file not found. Please ensure the log file path is correct.")
-    return logs
-
-# Simulate detecting suspicious traffic (e.g., port scanning, DDoS attempts, etc.)
-def suspicious_traffic_alert():
-    """Simulate detecting suspicious traffic."""
-    print(Fore.RED + "ALERT: Suspicious traffic detected from 192.168.99.1 to 192.168.96.2")
-
-# IP Blocking Manager (Manual blocking/unblocking)
 def ip_blocking_manager():
     """Manage IP blocking and unblocking."""
     while True:
@@ -151,12 +130,11 @@ def ip_blocking_manager():
         else:
             print(Fore.RED + "Invalid choice. Try again.")
 
-# Main Menu (choose between SOC analysis, log viewing, or IP blocking)
 def main_menu():
-    """Display the main menu."""    
+    """Display the main menu."""
     while True:
         print(Fore.GREEN + "\n--- HoneyPi-Bot ---")
-        print("1. SOC Analysis (Monitor PLC and SCADA)")
+        print("1. SOC Analysis (Real-Time)")
         print("2. View Logs")
         print("3. Manage IP Blocking")
         print("4. Exit")
