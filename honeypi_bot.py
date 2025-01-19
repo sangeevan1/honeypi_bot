@@ -1,10 +1,12 @@
-import subprocess
 import time
-import re
+import random
 from prettytable import PrettyTable
-from colorama import Fore, init
+from colorama import Fore, Style, init
+from datetime import datetime
+import re
+import subprocess
 
-# Initialise colorama for coloured output
+# Initialise colorama
 init(autoreset=True)
 
 blocked_ips = set()
@@ -107,10 +109,13 @@ def monitor_traffic():
 def show_logs():
     """Display historical logs in a table format."""
     print(Fore.BLUE + "--- Log Viewer ---")
-  
-    # Assuming you want to show logs from a saved file or another source. Modify accordingly.
+    logs = [
+        {"Time": "2025-01-19 12:00:00", "Event": "SCADA sent START", "Source": "192.168.95.1", "Dest": "192.168.96.1"},
+        {"Time": "2025-01-19 12:01:00", "Event": "PLC responded ACK", "Source": "192.168.96.1", "Dest": "192.168.95.1"},
+        {"Time": "2025-01-19 12:02:00", "Event": "Port scanning detected", "Source": "192.168.99.1", "Dest": "192.168.96.1"},
+    ]
     table = PrettyTable(["Time", "Event", "Source", "Destination"])
-    for log in logs:  # Assuming logs is defined elsewhere as a list of dicts
+    for log in logs:
         table.add_row([log["Time"], log["Event"], log["Source"], log["Dest"]])
     print(table)
     input("\nPress Enter to return to the main menu...")
