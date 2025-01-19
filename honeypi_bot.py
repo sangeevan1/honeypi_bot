@@ -1,4 +1,4 @@
-import time
+time
 import random
 from prettytable import PrettyTable
 from colorama import Fore, Style, init
@@ -41,15 +41,6 @@ def unblock_ip(ip):
     subprocess.run(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print(Fore.GREEN + f"{ip} has been unblocked.")
 
-def clear_logs():
-    """Clear saved logs and reset the system to a fresh state."""
-    print(Fore.YELLOW + "\nClearing all logs and resetting the system...")
-    global blocked_ips
-    blocked_ips.clear()  # Clear blocked IPs
-
-    # You can add any additional log clearing actions here
-    print(Fore.GREEN + "System has been reset to a fresh state.")
-
 def generate_live_log():
     """Generate a simulated log entry."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -86,11 +77,11 @@ def show_soc():
     try:
         while True:
             log = generate_live_log()
-            if log["suspicious"]:  # Only show suspicious logs
-                table.clear_rows()
-                row_colour = Fore.RED if log["suspicious"] else Fore.WHITE
-                table.add_row([log["time"], log["event_type"], log["source_ip"], log["dest_ip"], log["action"]])
-                print(row_colour + table.get_string())
+            table.clear_rows()
+            row_colour = Fore.RED if log["suspicious"] else Fore.WHITE
+            table.add_row([log["time"], log["event_type"], log["source_ip"], log["dest_ip"], log["action"]])
+            print(row_colour + table.get_string())
+            if log["suspicious"]:
                 print(Fore.RED + f"ALERT: Suspicious activity detected - {log['action']}")
             time.sleep(1)
     except KeyboardInterrupt:
@@ -99,7 +90,15 @@ def show_soc():
 def show_logs():
     """Display historical logs in a table format."""
     print(Fore.BLUE + "--- Log Viewer ---")
-    print("No saved logs available.")  # Inform the user that there are no logs.
+    logs = [
+        {"Time": "2025-01-19 12:00:00", "Event": "SCADA sent START", "Source": "192.168.95.1", "Dest": "192.168.96.1"},
+        {"Time": "2025-01-19 12:01:00", "Event": "PLC responded ACK", "Source": "192.168.96.1", "Dest": "192.168.95.1"},
+        {"Time": "2025-01-19 12:02:00", "Event": "Port scanning detected", "Source": "192.168.99.1", "Dest": "192.168.96.1"},
+    ]
+    table = PrettyTable(["Time", "Event", "Source", "Destination"])
+    for log in logs:
+        table.add_row([log["Time"], log["Event"], log["Source"], log["Dest"]])
+    print(table)
     input("\nPress Enter to return to the main menu...")
 
 def ip_blocking_manager():
@@ -138,8 +137,7 @@ def main_menu():
         print("1. SOC Analysis (Real-Time)")
         print("2. View Logs")
         print("3. Manage IP Blocking")
-        print("4. Clear All Logs and Reset")
-        print("5. Exit")
+        print("4. Exit")
         choice = input("Enter your choice: ")
         if choice == "1":
             show_soc()
@@ -148,8 +146,6 @@ def main_menu():
         elif choice == "3":
             ip_blocking_manager()
         elif choice == "4":
-            clear_logs()  # Call the function to clear logs and reset
-        elif choice == "5":
             print("Exiting HoneyPi-Bot. Goodbye!")
             break
         else:
