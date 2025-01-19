@@ -65,12 +65,14 @@ def generate_real_soc_log():
     # Simulate fetching data from logs (replace with actual log fetching)
     log_entry = fetch_real_log_entry()
     
-    if "unauthorized" in log_entry.lower():
+    # `log_entry` is a tuple, so access the action (third item) to check for 'unauthorized'
+    source_ip, dest_ip, action = log_entry
+    
+    if "unauthorized" in action.lower():  # Apply `.lower()` only to `action`
         event_type = "ALERT"
     else:
         event_type = "INFO"
     
-    source_ip, dest_ip, action = log_entry
     return f"{now} | {event_type} | Source: {source_ip} | Destination: {dest_ip} | Action: {action}"
 
 def fetch_real_log_entry():
@@ -151,7 +153,7 @@ def ip_blocking_manager():
 
 # Main Menu (choose between SOC analysis, log viewing, or IP blocking)
 def main_menu():
-    """Display the main menu."""
+    """Display the main menu."""    
     while True:
         print(Fore.GREEN + "\n--- HoneyPi-Bot ---")
         print("1. SOC Analysis (Monitor PLC and SCADA)")
