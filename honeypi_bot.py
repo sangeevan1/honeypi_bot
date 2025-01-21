@@ -1,155 +1,174 @@
+import os
 import time
-import random
-from prettytable import PrettyTable
-from colorama import Fore, Style, init
-from datetime import datetime
-import re
 import subprocess
+import re
+from colorama import Fore, Style, init
 
-# Initialise colorama
 init(autoreset=True)
 
-blocked_ips = set()
-
-def validate_ip(ip):
-    """Validate IP address format."""
-    pattern = r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
-    if not re.match(pattern, ip):
-        return False
-    parts = ip.split(".")
-    return all(0 <= int(part) <= 255 for part in parts)
-
-def block_ip(ip):
-    """Block an IP address."""
-    if ip in blocked_ips:
-        print(Fore.YELLOW + f"{ip} is already blocked.")
-        return
-    print("Blocking IP... Please wait.")
-    time.sleep(2)  # Simulate delay
-    blocked_ips.add(ip)
-    subprocess.run(["iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    print(Fore.GREEN + f"{ip} has been blocked.")
-
-def unblock_ip(ip):
-    """Unblock an IP address."""
-    if ip not in blocked_ips:
-        print(Fore.YELLOW + f"{ip} is not blocked.")
-        return
-    print("Unblocking IP... Please wait.")
-    time.sleep(2)  # Simulate delay
-    blocked_ips.remove(ip)
-    subprocess.run(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    print(Fore.GREEN + f"{ip} has been unblocked.")
-
-def generate_live_log():
-    """Generate a simulated log entry."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    source_ip = f"192.168.{random.randint(0, 99)}.{random.randint(1, 255)}"
-    dest_ip = f"192.168.96.{random.randint(1, 255)}"
-    event_types = ["INFO", "WARNING", "ALERT"]
-    actions = [
-        "SCADA sent START command to PLC.",
-        "SCADA sent STOP command to PLC.",
-        "PLC responded with ACK.",
-        "Unauthorised command received.",
-        "Port scanning detected.",
-        "Data exfiltration attempt detected.",
-    ]
-    event_type = random.choice(event_types)
-    action = random.choice(actions)
-    suspicious = "Unauthorised" in action or "scanning" in action or "exfiltration" in action
-    return {
-        "time": now,
-        "event_type": event_type,
-        "source_ip": source_ip,
-        "dest_ip": dest_ip,
-        "action": action,
-        "suspicious": suspicious,
-    }
-
-def show_soc():
-    """Real-time SOC analysis."""
-    print(Fore.BLUE + "--- SOC Analysis ---")
-    print("Monitoring activities (Press Ctrl+C to stop):")
-
-    table = PrettyTable(["Time", "Event Type", "Source", "Destination", "Action"])
-    table.align = "l"
-    try:
-        while True:
-            log = generate_live_log()
-            table.clear_rows()
-            row_colour = Fore.RED if log["suspicious"] else Fore.WHITE
-            table.add_row([log["time"], log["event_type"], log["source_ip"], log["dest_ip"], log["action"]])
-            print(row_colour + table.get_string())
-            if log["suspicious"]:
-                print(Fore.RED + f"ALERT: Suspicious activity detected - {log['action']}")
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print(Fore.YELLOW + "\nStopping SOC analysis and returning to main menu...")
-
-def show_logs():
-    """Display historical logs in a table format."""
-    print(Fore.BLUE + "--- Log Viewer ---")
-    logs = [
-        {"Time": "2025-01-19 12:00:00", "Event": "SCADA sent START", "Source": "192.168.95.1", "Dest": "192.168.96.1"},
-        {"Time": "2025-01-19 12:01:00", "Event": "PLC responded ACK", "Source": "192.168.96.1", "Dest": "192.168.95.1"},
-        {"Time": "2025-01-19 12:02:00", "Event": "Port scanning detected", "Source": "192.168.99.1", "Dest": "192.168.96.1"},
-    ]
-    table = PrettyTable(["Time", "Event", "Source", "Destination"])
-    for log in logs:
-        table.add_row([log["Time"], log["Event"], log["Source"], log["Dest"]])
-    print(table)
-    input("\nPress Enter to return to the main menu...")
-
-def ip_blocking_manager():
-    """Manage IP blocking and unblocking."""
-    while True:
-        print(Fore.BLUE + "--- IP Blocking Manager ---")
-        print("Blocked IPs:")
-        for ip in blocked_ips:
-            print(f" - {ip}")
-        print("\nOptions:")
-        print("1. Block an IP")
-        print("2. Unblock an IP")
-        print("3. Return to Main Menu")
-        choice = input("Enter your choice: ")
-        if choice == "1":
-            ip = input("Enter IP to block: ")
-            if validate_ip(ip):
-                block_ip(ip)
-            else:
-                print(Fore.RED + "Invalid IP format. Try again.")
-        elif choice == "2":
-            ip = input("Enter IP to unblock: ")
-            if validate_ip(ip):
-                unblock_ip(ip)
-            else:
-                print(Fore.RED + "Invalid IP format. Try again.")
-        elif choice == "3":
-            break
-        else:
-            print(Fore.RED + "Invalid choice. Try again.")
-
 def main_menu():
-    """Display the main menu."""
     while True:
-        print(Fore.GREEN + "\n--- HoneyPi-Bot ---")
-        print("1. SOC Analysis (Real-Time)")
+        print("\n--- HoneyPi-Bot ---")
+        print("1. Start SOC: Real-time Analysis (Suricata)")
         print("2. View Logs")
-        print("3. Manage IP Blocking")
-        print("4. Exit")
+        print("3. Manage IPs (Allow/Block)")
+        print("4. Start/Stop Suricata")
+        print("5. Exit")
         choice = input("Enter your choice: ")
+
         if choice == "1":
-            show_soc()
+            start_soc()
         elif choice == "2":
-            show_logs()
+            view_logs()
         elif choice == "3":
-            ip_blocking_manager()
+            manage_ips()
         elif choice == "4":
+            start_stop_suricata()
+        elif choice == "5":
             print("Exiting HoneyPi-Bot. Goodbye!")
+            stop_suricata()  # Stop Suricata before exiting
             break
         else:
             print(Fore.RED + "Invalid choice. Please try again.")
 
+def start_soc():
+    print("\n--- SOC: Real-time Analysis ---")
+    print("Monitoring traffic for malicious or suspicious activities...\n")
+    print("Press CTRL+C to return to the main menu.")
+    
+    try:
+        # Tail the Suricata logs for live updates
+        log_file = "/var/log/suricata/eve.json"
+        if not os.path.exists(log_file):
+            print(Fore.RED + "Suricata log file not found! Ensure Suricata is running.")
+            return
+        
+        with open(log_file, "r") as file:
+            # Continuously read new log entries
+            file.seek(0, os.SEEK_END)
+            while True:
+                line = file.readline()
+                if not line:
+                    time.sleep(0.1)
+                    continue
+                
+                # Parse Suricata logs for suspicious or malicious activity
+                if "alert" in line:
+                    alert = extract_suricata_alert(line)
+                    if alert:
+                        print(Fore.RED + f"ALERT: {alert}")
+                else:
+                    print(Style.DIM + line.strip())
+
+    except KeyboardInterrupt:
+        print("\nReturning to the main menu.")
+
+def extract_suricata_alert(log_entry):
+    # Extract relevant fields from Suricata JSON logs
+    try:
+        import json
+        log = json.loads(log_entry)
+        if "alert" in log:
+            alert = log["alert"]
+            return f"[{alert['severity']}] {alert['signature']} | Source: {log['src_ip']} | Destination: {log['dest_ip']}"
+    except Exception as e:
+        return None
+
+def view_logs():
+    print("\n--- Logs ---")
+    log_file = "system_logs.txt"
+
+    if not os.path.exists(log_file):
+        print(Fore.RED + "No logs found!")
+        return
+
+    print("Date & Time          Event")
+    print("-" * 50)
+
+    with open(log_file, "r") as file:
+        for line in file:
+            print(line.strip())
+
+    input("\nPress Enter to return to the main menu.")
+
+def log_event(event):
+    log_file = "system_logs.txt"
+    with open(log_file, "a") as file:
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        file.write(f"{timestamp} - {event}\n")
+
+def manage_ips():
+    print("\n--- Manage IPs ---")
+    print("1. Block an IP")
+    print("2. Unblock an IP")
+    print("3. Return to Main Menu")
+    choice = input("Enter your choice: ")
+
+    if choice == "1":
+        block_ip()
+    elif choice == "2":
+        unblock_ip()
+    elif choice == "3":
+        return
+    else:
+        print(Fore.RED + "Invalid choice. Please try again.")
+
+def block_ip():
+    ip = input("Enter the IP address to block: ")
+    if validate_ip(ip):
+        print(f"Blocking IP: {ip}")
+        os.system(f"sudo iptables -A INPUT -s {ip} -j DROP")
+        log_event(f"Blocked IP: {ip}")
+        print(Fore.GREEN + f"IP {ip} has been blocked.")
+    else:
+        print(Fore.RED + "Invalid IP address. Please try again.")
+
+def unblock_ip():
+    ip = input("Enter the IP address to unblock: ")
+    if validate_ip(ip):
+        print(f"Unblocking IP: {ip}")
+        os.system(f"sudo iptables -D INPUT -s {ip} -j DROP")
+        log_event(f"Unblocked IP: {ip}")
+        print(Fore.GREEN + f"IP {ip} has been unblocked.")
+    else:
+        print(Fore.RED + "Invalid IP address. Please try again.")
+
+def validate_ip(ip):
+    ip_pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    return bool(ip_pattern.match(ip))
+
+def start_stop_suricata():
+    print("\n--- Suricata Control ---")
+    print("1. Start Suricata")
+    print("2. Stop Suricata")
+    print("3. Return to Main Menu")
+    choice = input("Enter your choice: ")
+
+    if choice == "1":
+        start_suricata()
+    elif choice == "2":
+        stop_suricata()
+    elif choice == "3":
+        return
+    else:
+        print(Fore.RED + "Invalid choice. Please try again.")
+
+def start_suricata():
+    print(Fore.GREEN + "Starting Suricata...\n")
+    # Start Suricata in the background
+    process = subprocess.Popen(["sudo", "suricata", "-c", "/etc/suricata/suricata.yaml", "-i", "eth0"])
+    time.sleep(2)  # Give Suricata some time to start
+    print(Fore.GREEN + "Suricata is now running.")
+
+def stop_suricata():
+    print(Fore.RED + "Stopping Suricata...\n")
+    # Stop Suricata by killing the process
+    os.system("sudo pkill suricata")
+    print(Fore.GREEN + "Suricata has been stopped.")
+
 if __name__ == "__main__":
+    # Automatically start Suricata when the script is run
+    start_suricata()
+
+    # Run the main menu
     main_menu()
