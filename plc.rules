@@ -1,0 +1,36 @@
+# ================================
+# Suricata Rules for PLC & SCADA Security
+# Protect against malicious scans, attacks, and unauthorised behaviours
+# ================================
+
+# Modbus Protocol Rules
+alert tcp any any -> <PLC_IP> 502 (msg:"MODBUS Write Command Detected"; content:"|00 00 00|"; offset:0; depth:3; content:"|00 06|"; offset:7; depth:2; sid:2000001; rev:1;)
+alert tcp any any -> <PLC_IP> 502 (msg:"MODBUS Force Single Coil Detected"; content:"|00 00 00|"; offset:0; depth:3; content:"|00 05|"; offset:7; depth:2; sid:2000002; rev:1;)
+alert tcp any any -> <PLC_IP> 502 (msg:"MODBUS Invalid Function Code"; content:"|00 00 00|"; depth:3; content:!"|00 01 02 03 04 05 06|"; offset:7; sid:2000003; rev:1;)
+
+# DNP3 Protocol Rules
+alert tcp any any -> <PLC_IP> 20000 (msg:"DNP3 Malformed Packet Detected"; dsize:<10; sid:2000010; rev:1;)
+alert tcp any any -> <PLC_IP> 20000 (msg:"DNP3 Stop Command Detected"; content:"STOP"; sid:2000011; rev:1;)
+
+# SCADA System Rules
+alert tcp any any -> <SCADA_IP> any (msg:"SCADA Unauthorised Login Attempt"; content:"login"; content:"unauthorised"; distance:5; within:20; sid:2000020; rev:1;)
+alert tcp any any -> <SCADA_IP> any (msg:"SCADA Configuration Change Detected"; content:"config"; content:"change"; distance:5; within:30; sid:2000021; rev:1;)
+
+# Scan Detection Rules
+alert tcp any any -> <PLC_IP> any (msg:"NMAP Scan Detected"; content:"|4E 6D 61 70|"; sid:2000030; rev:1;)
+alert tcp any any -> <PLC_IP> any (msg:"Full Port Scan Detected"; threshold:type both, track by_src, count 10, seconds 1; sid:2000031; rev:1;)
+alert icmp any any -> <PLC_IP> any (msg:"Ping Sweep Detected"; itype:8; threshold:type both, track by_src, count 5, seconds 10; sid:2000032; rev:1;)
+
+# Command Injection and Exploits
+alert tcp any any -> <PLC_IP> 502 (msg:"MODBUS Command Injection Detected"; content:"cmd="; sid:2000040; rev:1;)
+alert tcp any any -> <SCADA_IP> any (msg:"SCADA Exploit Attempt Detected"; content:"exploit"; content:"payload"; sid:2000041; rev:1;)
+
+# Malware and Anomalous Behaviour
+alert tcp any any -> <SCADA_IP> any (msg:"Malware C2 Traffic Detected"; content:"malware"; sid:2000050; rev:1;)
+alert ip any any -> <PLC_IP> any (msg:"High Bandwidth Traffic to PLC Detected"; flow:to_server,established; threshold:type both, track by_src, count 100, seconds 10; sid:2000051; rev:1;)
+
+# Unauthorised Access
+drop tcp ![<SCADA_IP>,<WORKSTATION_IP>] any -> <PLC_IP> any (msg:"Unauthorised Traffic to PLC Blocked"; sid:2000060; rev:1;)
+
+# Honeypot Redirection
+alert tcp any any -> <PLC_IP> any (msg:"Unauthorised Access Detected; Forwarding to Honeypot"; sid:2000070; rev:1; fwd:honeypot;)
