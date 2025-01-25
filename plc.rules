@@ -1,23 +1,79 @@
-# DNP3 Protocol Rules
-alert tcp any any -> 192.168.96.2 20000 (msg:"DNP3 Malformed Packet Detected"; dsize:<10; sid:2000001;)
-alert tcp any any -> 192.168.96.2 20000 (msg:"DNP3 Stop Command Detected"; content:"STOP"; sid:2000002;)
+# ================================
+# 1. Allow SCADA Traffic
+# ================================
 
-# SCADA System Rules
-alert tcp any any -> 192.168.90.5 any (msg:"SCADA Unauthorized Login Attempt"; content:"login"; sid:2000003;)
-alert tcp any any -> 192.168.90.5 any (msg:"SCADA Configuration Change Detected"; content:"config"; sid:2000004;)
+# Allow SCADA traffic explicitly before other rules
+pass tcp 192.168.90.5 any -> 192.168.96.2 any (msg: "SCADA Traffic Allowed"; sid:1000001; rev:2;)
 
-# Scan Detection Rules
-alert tcp any any -> 192.168.96.2 any (msg:"NMAP Scan Detected"; content:"|4E 6D 61 70|"; sid:2000005;)
-alert tcp any any -> 192.168.96.2 any (msg:"Full Port Scan Detected"; threshold:type both, track by_src, count 100, seconds 10; sid:2000006;)
-alert icmp any any -> 192.168.96.2 any (msg:"Ping Sweep Detected"; itype:8; threshold:type both, track by_src, count 5, seconds 10; sid:2000007;)
+# Allow workstation traffic to PLC (if applicable)
+pass tcp 192.168.90.10 any -> 192.168.96.2 any (msg: "Workstation Traffic Allowed"; sid:1000002; rev:1;)
 
-# Command Injection and Exploits
-alert tcp any any -> 192.168.96.2 502 (msg:"MODBUS Command Injection Detected"; content:"cmd="; sid:2000008;)
-alert tcp any any -> 192.168.90.5 any (msg:"SCADA Exploit Attempt Detected"; content:"exploit"; sid:2000009;)
+# ================================
+# 2. DNP3 Protocol Rules
+# ================================
 
-# Malware and Anomalous Behaviour
-alert tcp any any -> 192.168.90.5 any (msg:"Malware C2 Traffic Detected"; content:"malware"; sid:2000010;)
-alert ip any any -> 192.168.96.2 any (msg:"High Bandwidth Traffic to PLC Detected"; flow:to_server; sid:2000011;)
+# Detect malformed DNP3 packets
+alert tcp any any -> 192.168.96.2 20000 (msg: "DNP3 Malformed Packet Detected"; dsize:<10; sid:2000001; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
 
-# Honeypot Redirection
-alert tcp any any -> 192.168.96.2 any (msg:"Unauthorized Access Detected; Forwarding to Honeypot"; sid:2000012;)
+# Detect DNP3 stop commands
+alert tcp any any -> 192.168.96.2 20000 (msg: "DNP3 Stop Command Detected"; content:"STOP"; sid:2000002; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
+
+# ================================
+# 3. SCADA System Monitoring
+# ================================
+
+# Detect unauthorized login attempts
+alert tcp any any -> 192.168.90.5 any (msg: "SCADA Unauthorized Login Attempt"; content:"login"; sid:2000003; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
+
+# Detect SCADA configuration changes
+alert tcp any any -> 192.168.90.5 any (msg: "SCADA Configuration Change Detected"; content:"config"; sid:2000004; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
+
+# ================================
+# 4. Scan Detection Rules
+# ================================
+
+# Detect NMAP scans
+alert tcp any any -> 192.168.96.2 any (msg: "NMAP Scan Detected"; content:"|4E 6D 61 70|"; sid:2000005; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
+
+# Detect full port scans
+alert tcp any any -> 192.168.96.2 any (msg: "Full Port Scan Detected"; threshold: type both, track by_src, count 5, seconds 60; sid:2000006; rev:2;)
+
+# Detect ping sweeps
+alert icmp any any -> 192.168.96.2 any (msg: "Ping Sweep Detected"; itype:8; threshold: type both, track by_src, count 5, seconds 60; sid:2000007; rev:2;)
+
+# ================================
+# 5. Command Injection and Exploits
+# ================================
+
+# Detect MODBUS command injection
+alert tcp any any -> 192.168.96.2 502 (msg: "MODBUS Command Injection Detected"; content:"cmd="; sid:2000008; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
+
+# Detect SCADA exploits
+alert tcp any any -> 192.168.90.5 any (msg: "SCADA Exploit Attempt Detected"; content:"exploit"; sid:2000009; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
+
+# ================================
+# 6. Malware and Anomalous Behavior
+# ================================
+
+# Detect malware-related traffic
+alert tcp any any -> 192.168.90.5 any (msg: "Malware C2 Traffic Detected"; content:"malware"; sid:2000010; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
+
+# Detect high-bandwidth traffic to PLC
+alert ip any any -> 192.168.96.2 any (msg: "High Bandwidth Traffic to PLC Detected"; flow:to_server; dsize:>500; sid:2000011; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
+
+# ================================
+# 7. Unauthorized Traffic Detection
+# ================================
+
+# Drop unauthorized traffic to PLC
+drop tcp ![192.168.90.5,192.168.90.10] any -> 192.168.96.2 any (msg: "Unauthorized Traffic to PLC"; sid:2000012; rev:2;)
+
+# ================================
+# 8. Honeypot Redirection
+# ================================
+
+# Redirect unauthorized access to honeypot
+alert tcp any any -> 192.168.96.2 any (msg: "Unauthorized Access Detected; Redirecting to Honeypot"; sid:2000013; rev:2; threshold: type limit, track by_src, count 1, seconds 60;)
+
+# Log redirection to honeypot (helpful for monitoring)
+alert tcp any any -> 192.168.96.114 any (msg: "Traffic Redirected to Honeypot"; sid:2000014; rev:2;)
