@@ -1,23 +1,23 @@
 # DNP3 Protocol Rules
-alert tcp any any -> 192.168.96.2 20000 (msg: "DNP3 Malformed Packet Detected"; dsize:<10; sid:2000001;)
-alert tcp any any -> 192.168.96.2 20000 (msg: "DNP3 Stop Command Detected"; content:"STOP"; sid:2000002;)
+alert tcp any any -> 192.168.96.2 20000 (msg:"DNP3 Malformed Packet Detected"; dsize:<10; sid:2000001;)
+alert tcp any any -> 192.168.96.2 20000 (msg:"DNP3 Stop Command Detected"; content:"STOP"; sid:2000002;)
 
 # SCADA System Rules
-alert tcp any any -> 192.168.90.5 any (msg: "SCADA Unauthorized Login Attempt"; content:"login"; sid:2000003;)
-alert tcp any any -> 192.168.90.5 any (msg: "SCADA Configuration Change Detected"; content:"config"; sid:2000004;)
+alert tcp any any -> 192.168.90.5 any (msg:"SCADA Unauthorized Login Attempt"; content:"login"; sid:2000003;)
+alert tcp any any -> 192.168.90.5 any (msg:"SCADA Configuration Change Detected"; content:"config"; sid:2000004;)
 
 # Scan Detection Rules
-alert tcp any any -> 192.168.96.2 any (msg: "NMAP Scan Detected"; content:"|4E 6D 61 70|"; sid:2000005;)
-alert tcp any any -> 192.168.96.2 any (msg: "Full Port Scan Detected"; threshold: type both, track by_src, count 100, seconds 10; sid:2000006;)
-alert icmp any any -> 192.168.96.2 any (msg: "Ping Sweep Detected"; itype:8; threshold: type both, track by_src, count 5, seconds 10; sid:2000007;)
+alert tcp any any -> 192.168.96.2 any (msg:"NMAP Scan Detected"; content:"|4E 6D 61 70|"; sid:2000005;)
+alert tcp any any -> 192.168.96.2 any (msg:"Full Port Scan Detected"; threshold:type both, track by_src, count 100, seconds 10; sid:2000006;)
+alert icmp any any -> 192.168.96.2 any (msg:"Ping Sweep Detected"; itype:8; threshold:type both, track by_src, count 5, seconds 10; sid:2000007;)
 
 # Command Injection and Exploits
-alert tcp any any -> 192.168.96.2 502 (msg: "MODBUS Command Injection Detected"; content:"cmd="; sid:2000008;)
-alert tcp any any -> 192.168.90.5 any (msg: "SCADA Exploit Attempt Detected"; content:"exploit"; sid:2000009;)
+alert tcp any any -> 192.168.96.2 502 (msg:"MODBUS Command Injection Detected"; content:"cmd="; sid:2000008;)
+alert tcp any any -> 192.168.90.5 any (msg:"SCADA Exploit Attempt Detected"; content:"exploit"; sid:2000009;)
 
 # Malware and Anomalous Behaviour
-alert tcp any any -> 192.168.90.5 any (msg: "Malware C2 Traffic Detected"; content:"malware"; sid:2000010;)
-alert ip any any -> 192.168.96.2 any (msg: "High Bandwidth Traffic to PLC Detected"; flow:to_server; sid:2000011;)
+alert tcp any any -> 192.168.90.5 any (msg:"Malware C2 Traffic Detected"; content:"malware"; sid:2000010;)
+alert ip any any -> 192.168.96.2 any (msg:"High Bandwidth Traffic to PLC Detected"; flow:to_server; sid:2000011;)
 
 # Honeypot Redirection
-alert tcp any any -> 192.168.96.2 any (msg: "Unauthorized Access Detected; Forwarding to Honeypot"; sid:2000012;)
+alert tcp any any -> 192.168.96.2 any (msg:"Unauthorized Access Detected; Forwarding to Honeypot"; sid:2000012;)
